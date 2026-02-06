@@ -14,16 +14,270 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      audit_logs: {
+        Row: {
+          action: string
+          admin_id: string | null
+          created_at: string
+          details: string | null
+          id: string
+          target_customer_id: string | null
+        }
+        Insert: {
+          action: string
+          admin_id?: string | null
+          created_at?: string
+          details?: string | null
+          id?: string
+          target_customer_id?: string | null
+        }
+        Update: {
+          action?: string
+          admin_id?: string | null
+          created_at?: string
+          details?: string | null
+          id?: string
+          target_customer_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_target_customer_id_fkey"
+            columns: ["target_customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      card_requests: {
+        Row: {
+          card_type: string
+          customer_id: string
+          id: string
+          processed_at: string | null
+          processed_by: string | null
+          requested_at: string
+          status: Database["public"]["Enums"]["card_request_status"]
+        }
+        Insert: {
+          card_type: string
+          customer_id: string
+          id?: string
+          processed_at?: string | null
+          processed_by?: string | null
+          requested_at?: string
+          status?: Database["public"]["Enums"]["card_request_status"]
+        }
+        Update: {
+          card_type?: string
+          customer_id?: string
+          id?: string
+          processed_at?: string | null
+          processed_by?: string | null
+          requested_at?: string
+          status?: Database["public"]["Enums"]["card_request_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "card_requests_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customers: {
+        Row: {
+          account_number: string
+          balance: number
+          can_login: boolean
+          can_send_money: boolean
+          card_status: Database["public"]["Enums"]["card_status"]
+          created_at: string
+          id: string
+          status: Database["public"]["Enums"]["account_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_number: string
+          balance?: number
+          can_login?: boolean
+          can_send_money?: boolean
+          card_status?: Database["public"]["Enums"]["card_status"]
+          created_at?: string
+          id?: string
+          status?: Database["public"]["Enums"]["account_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_number?: string
+          balance?: number
+          can_login?: boolean
+          can_send_money?: boolean
+          card_status?: Database["public"]["Enums"]["card_status"]
+          created_at?: string
+          id?: string
+          status?: Database["public"]["Enums"]["account_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          read: boolean
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          read?: boolean
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          read?: boolean
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string
+          id: string
+          name: string
+          phone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          phone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          phone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          customer_id: string
+          description: string
+          id: string
+          recipient_account: string | null
+          recipient_name: string | null
+          reference: string
+          sender_account: string | null
+          sender_name: string | null
+          type: Database["public"]["Enums"]["transaction_type"]
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          customer_id: string
+          description: string
+          id?: string
+          recipient_account?: string | null
+          recipient_name?: string | null
+          reference: string
+          sender_account?: string | null
+          sender_name?: string | null
+          type: Database["public"]["Enums"]["transaction_type"]
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          customer_id?: string
+          description?: string
+          id?: string
+          recipient_account?: string | null
+          recipient_name?: string | null
+          reference?: string
+          sender_account?: string | null
+          sender_name?: string | null
+          type?: Database["public"]["Enums"]["transaction_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      generate_account_number: { Args: never; Returns: string }
+      get_customer_id: { Args: { _user_id: string }; Returns: string }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      account_status: "active" | "blocked" | "frozen"
+      app_role: "admin" | "customer"
+      card_request_status: "pending" | "approved" | "rejected"
+      card_status: "none" | "pending" | "approved" | "rejected"
+      transaction_type: "credit" | "debit"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +404,12 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      account_status: ["active", "blocked", "frozen"],
+      app_role: ["admin", "customer"],
+      card_request_status: ["pending", "approved", "rejected"],
+      card_status: ["none", "pending", "approved", "rejected"],
+      transaction_type: ["credit", "debit"],
+    },
   },
 } as const
