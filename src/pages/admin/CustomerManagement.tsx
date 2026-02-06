@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Search, Filter, MoreVertical, Lock, Unlock, Snowflake, Eye } from 'lucide-react';
+import { Search, MoreVertical, Lock, Unlock, Snowflake, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { BottomNav } from '@/components/ui/BottomNav';
 import { StatusBadge } from '@/components/bank/StatusBadge';
-import { mockCustomers } from '@/data/mockData';
-import { Customer, AccountStatus } from '@/types/bank';
+import { useAdminData } from '@/hooks/useAdminData';
+import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import {
@@ -21,13 +21,13 @@ export default function CustomerManagement() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
-  const [customers, setCustomers] = useState<Customer[]>(mockCustomers);
+  const { customers, customersLoading, updateCustomerStatus } = useAdminData();
 
   const filteredCustomers = customers.filter(customer => {
     const matchesSearch = 
-      customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      customer.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      customer.accountNumber.includes(searchQuery);
+      customer.profile?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      customer.profile?.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      customer.account_number.includes(searchQuery);
     
     const matchesFilter = 
       filter === 'all' || customer.status === filter;
@@ -35,38 +35,45 @@ export default function CustomerManagement() {
     return matchesSearch && matchesFilter;
   });
 
-  const handleStatusChange = (customerId: string, newStatus: AccountStatus) => {
-    setCustomers(prev => 
-      prev.map(c => 
-        c.id === customerId 
-          ? { 
-              ...c, 
-              status: newStatus,
-              canSendMoney: newStatus === 'active',
-              canLogin: newStatus !== 'blocked'
-            } 
-          : c
-      )
-    );
-    
-    const statusMessages: Record<AccountStatus, string> = {
-      active: 'Customer unblocked successfully',
-      blocked: 'Customer blocked successfully',
-      frozen: 'Account frozen successfully',
-    };
-    
-    toast.success(statusMessages[newStatus]);
+  const handleStatusChange = async (customerId: string, newStatus: 'active' | 'blocked' | 'frozen') => {
+    try {
+      await updateCustomerStatus.mutateAsync({
+        customerId,
+        updates: {
+          status: newStatus,
+          can_send_money: newStatus === 'active',
+          can_login: newStatus !== 'blocked',
+        },
+        action: newStatus === 'active' ? 'UNBLOCK_CUSTOMER' : newStatus === 'blocked' ? 'BLOCK_CUSTOMER' : 'FREEZE_ACCOUNT',
+        details: `Account ${newStatus === 'active' ? 'unblocked' : newStatus === 'blocked' ? 'blocked' : 'frozen'} by admin`,
+      });
+      
+      const statusMessages = {
+        active: 'Customer unblocked successfully',
+        blocked: 'Customer blocked successfully',
+        frozen: 'Account frozen successfully',
+      };
+      
+      toast.success(statusMessages[newStatus]);
+    } catch (error) {
+      toast.error('Failed to update customer status');
+    }
   };
 
-  const handleToggleSendMoney = (customerId: string) => {
-    setCustomers(prev => 
-      prev.map(c => 
-        c.id === customerId 
-          ? { ...c, canSendMoney: !c.canSendMoney } 
-          : c
-      )
-    );
-    toast.success('Send money permission updated');
+  const handleToggleSendMoney = async (customerId: string, currentValue: boolean) => {
+    try {
+      await updateCustomerStatus.mutateAsync({
+        customerId,
+        updates: {
+          can_send_money: !currentValue,
+        },
+        action: currentValue ? 'DISABLE_TRANSFERS' : 'ENABLE_TRANSFERS',
+        details: `Money transfers ${currentValue ? 'disabled' : 'enabled'} by admin`,
+      });
+      toast.success('Send money permission updated');
+    } catch (error) {
+      toast.error('Failed to update permission');
+    }
   };
 
   return (
@@ -117,7 +124,13 @@ export default function CustomerManagement() {
 
       {/* Customers List */}
       <div className="px-4 space-y-3">
-        {filteredCustomers.map((customer) => (
+        {customersLoading ? (
+          <>
+            <Skeleton className="h-16 rounded-xl" />
+            <Skeleton className="h-16 rounded-xl" />
+            <Skeleton className="h-16 rounded-xl" />
+          </>
+        ) : filteredCustomers.map((customer) => (
           <div
             key={customer.id}
             className="flex items-center justify-between p-4 bg-card rounded-xl card-shadow"
@@ -128,13 +141,13 @@ export default function CustomerManagement() {
             >
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
                 <span className="font-semibold text-primary">
-                  {customer.name.split(' ').map(n => n[0]).join('')}
+                  {customer.profile?.name?.split(' ').map(n => n[0]).join('') || '?'}
                 </span>
               </div>
               <div>
-                <p className="font-medium">{customer.name}</p>
+                <p className="font-medium">{customer.profile?.name || 'Unknown'}</p>
                 <p className="text-sm text-muted-foreground">
-                  {customer.accountNumber}
+                  {customer.account_number}
                 </p>
               </div>
             </button>
@@ -170,8 +183,8 @@ export default function CustomerManagement() {
                     </DropdownMenuItem>
                   )}
                   
-                  <DropdownMenuItem onClick={() => handleToggleSendMoney(customer.id)}>
-                    {customer.canSendMoney ? (
+                  <DropdownMenuItem onClick={() => handleToggleSendMoney(customer.id, customer.can_send_money)}>
+                    {customer.can_send_money ? (
                       <>
                         <Lock className="w-4 h-4 mr-2" />
                         Disable Transfers
@@ -189,7 +202,7 @@ export default function CustomerManagement() {
           </div>
         ))}
 
-        {filteredCustomers.length === 0 && (
+        {!customersLoading && filteredCustomers.length === 0 && (
           <div className="text-center py-12">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
               <Search className="w-8 h-8 text-muted-foreground" />

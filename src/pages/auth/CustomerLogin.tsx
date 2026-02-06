@@ -1,8 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, Phone, Mail, Lock, ArrowRight, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { z } from 'zod';
+
+const loginSchema = z.object({
+  email: z.string().email('Please enter a valid email address'),
+  password: z.string().min(1, 'Password is required'),
+});
 
 export default function CustomerLogin() {
   const [identifier, setIdentifier] = useState('');
@@ -11,23 +19,70 @@ export default function CustomerLogin() {
   const [isLoading, setIsLoading] = useState(false);
   const [loginMethod, setLoginMethod] = useState<'phone' | 'email'>('email');
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulate authentication
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // For demo, accept any credentials
-    if (identifier && password) {
-      toast.success('Welcome back!');
-      navigate('/dashboard');
-    } else {
-      toast.error('Please enter your credentials');
+    try {
+      // Validate input
+      if (loginMethod === 'email') {
+        loginSchema.parse({ email: identifier, password });
+      }
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: identifier,
+        password,
+      });
+
+      if (error) {
+        if (error.message.includes('Invalid login credentials')) {
+          toast.error('Invalid email or password. Please try again.');
+        } else if (error.message.includes('Email not confirmed')) {
+          toast.error('Please verify your email before signing in.');
+        } else {
+          toast.error(error.message);
+        }
+      } else if (data.user) {
+        // Check if customer can login
+        const { data: customer } = await supabase
+          .from('customers')
+          .select('can_login, status')
+          .eq('user_id', data.user.id)
+          .maybeSingle();
+
+        if (customer && !customer.can_login) {
+          await supabase.auth.signOut();
+          toast.error('Your account has been disabled. Please contact support.');
+          return;
+        }
+
+        if (customer && customer.status === 'blocked') {
+          await supabase.auth.signOut();
+          toast.error('Your account has been blocked. Please contact support.');
+          return;
+        }
+
+        toast.success('Welcome back!');
+        navigate('/dashboard');
+      }
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        toast.error(error.errors[0].message);
+      } else {
+        toast.error('Login failed. Please try again.');
+      }
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
   return (

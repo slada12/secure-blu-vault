@@ -1,8 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock, ArrowRight, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { z } from 'zod';
+
+const loginSchema = z.object({
+  email: z.string().email('Please enter a valid email address'),
+  password: z.string().min(1, 'Password is required'),
+});
 
 export default function AdminLogin() {
   const [email, setEmail] = useState('');
@@ -10,23 +18,61 @@ export default function AdminLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { user, isAdmin } = useAuth();
+
+  // Redirect if already logged in as admin
+  useEffect(() => {
+    if (user && isAdmin) {
+      navigate('/admin');
+    }
+  }, [user, isAdmin, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulate authentication
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // For demo, accept any credentials
-    if (email && password) {
-      toast.success('Welcome back, Admin!');
-      navigate('/admin');
-    } else {
-      toast.error('Please enter your credentials');
+    try {
+      // Validate input
+      loginSchema.parse({ email, password });
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        if (error.message.includes('Invalid login credentials')) {
+          toast.error('Invalid email or password. Please try again.');
+        } else {
+          toast.error(error.message);
+        }
+      } else if (data.user) {
+        // Check if user is admin
+        const { data: roleData } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', data.user.id)
+          .eq('role', 'admin')
+          .maybeSingle();
+
+        if (!roleData) {
+          await supabase.auth.signOut();
+          toast.error('Access denied. Admin privileges required.');
+          return;
+        }
+
+        toast.success('Welcome back, Admin!');
+        navigate('/admin');
+      }
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        toast.error(error.errors[0].message);
+      } else {
+        toast.error('Login failed. Please try again.');
+      }
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
   return (

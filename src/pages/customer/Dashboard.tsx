@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Send, ArrowDownToLine, CreditCard, Smartphone, Receipt, QrCode } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { BankCard } from '@/components/bank/BankCard';
@@ -6,11 +5,16 @@ import { TransactionItem } from '@/components/bank/TransactionItem';
 import { QuickAction } from '@/components/bank/QuickAction';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { BottomNav } from '@/components/ui/BottomNav';
-import { currentCustomer, mockTransactions } from '@/data/mockData';
+import { useCustomer } from '@/hooks/useCustomer';
+import { useTransactions } from '@/hooks/useTransactions';
+import { useNotifications } from '@/hooks/useNotifications';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function CustomerDashboard() {
   const navigate = useNavigate();
-  const customerTransactions = mockTransactions.filter(t => t.customerId === currentCustomer.id);
+  const { customer, profile, isLoading: customerLoading } = useCustomer();
+  const { transactions, isLoading: transactionsLoading } = useTransactions();
+  const { unreadCount } = useNotifications();
 
   const quickActions = [
     { icon: Send, label: 'Send', onClick: () => navigate('/send-money'), variant: 'primary' as const },
@@ -19,24 +23,39 @@ export default function CustomerDashboard() {
     { icon: Smartphone, label: 'Top Up', onClick: () => navigate('/top-up') },
   ];
 
+  if (customerLoading) {
+    return (
+      <div className="min-h-screen bg-background pb-24">
+        <div className="bank-card-gradient px-4 pt-safe-top pb-8">
+          <div className="h-20" />
+          <Skeleton className="h-48 w-full rounded-2xl" />
+        </div>
+        <div className="px-4 -mt-4">
+          <Skeleton className="h-24 w-full rounded-2xl" />
+        </div>
+        <BottomNav variant="customer" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background pb-24">
       {/* Header Section with Card */}
       <div className="bank-card-gradient px-4 pt-safe-top pb-8">
         <PageHeader 
-          title={`Hello, ${currentCustomer.name.split(' ')[0]}`}
+          title={`Hello, ${profile?.name?.split(' ')[0] || 'User'}`}
           subtitle="Welcome back"
           showNotification
-          notificationCount={2}
+          notificationCount={unreadCount}
           variant="dark"
         />
         
         {/* Bank Card */}
         <div className="mt-4">
           <BankCard
-            name={currentCustomer.name}
-            accountNumber={currentCustomer.accountNumber}
-            balance={currentCustomer.balance}
+            name={profile?.name || 'User'}
+            accountNumber={customer?.account_number || '0000000000'}
+            balance={Number(customer?.balance) || 0}
           />
         </div>
       </div>
@@ -95,20 +114,36 @@ export default function CustomerDashboard() {
         </div>
         
         <div className="space-y-3">
-          {customerTransactions.slice(0, 5).map((transaction, index) => (
+          {transactionsLoading ? (
+            <>
+              <Skeleton className="h-16 w-full rounded-xl" />
+              <Skeleton className="h-16 w-full rounded-xl" />
+              <Skeleton className="h-16 w-full rounded-xl" />
+            </>
+          ) : transactions.slice(0, 5).map((transaction, index) => (
             <div 
               key={transaction.id}
               className="animate-fade-in"
               style={{ animationDelay: `${index * 50}ms` }}
             >
               <TransactionItem 
-                transaction={transaction}
+                transaction={{
+                  id: transaction.id,
+                  customerId: transaction.customer_id,
+                  type: transaction.type,
+                  amount: Number(transaction.amount),
+                  description: transaction.description,
+                  recipientName: transaction.recipient_name || undefined,
+                  senderName: transaction.sender_name || undefined,
+                  reference: transaction.reference,
+                  createdAt: new Date(transaction.created_at),
+                }}
                 onClick={() => navigate(`/transaction/${transaction.id}`)}
               />
             </div>
           ))}
           
-          {customerTransactions.length === 0 && (
+          {!transactionsLoading && transactions.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
               <p>No transactions yet</p>
             </div>

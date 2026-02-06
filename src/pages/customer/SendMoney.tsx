@@ -2,23 +2,113 @@ import { useState } from 'react';
 import { ArrowLeft, User, AtSign, Send, CheckCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { currentCustomer, mockCustomers } from '@/data/mockData';
+import { useCustomer } from '@/hooks/useCustomer';
+import { useTransactions } from '@/hooks/useTransactions';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+
+interface RecipientData {
+  id: string;
+  name: string;
+  accountNumber: string;
+}
 
 export default function SendMoney() {
   const navigate = useNavigate();
+  const { customer, profile, refetchCustomer } = useCustomer();
+  const { createTransaction } = useTransactions();
   const [step, setStep] = useState<'recipient' | 'amount' | 'confirm' | 'success'>('recipient');
   const [recipient, setRecipient] = useState('');
-  const [selectedRecipient, setSelectedRecipient] = useState<typeof mockCustomers[0] | null>(null);
+  const [selectedRecipient, setSelectedRecipient] = useState<RecipientData | null>(null);
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [searchResults, setSearchResults] = useState<RecipientData[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
-  // Recent recipients (other customers)
-  const recentRecipients = mockCustomers.filter(c => c.id !== currentCustomer.id).slice(0, 4);
+  // Check if customer can send money
+  const canSendMoney = customer?.can_send_money && customer?.status === 'active';
 
-  const handleRecipientSelect = (customer: typeof mockCustomers[0]) => {
-    setSelectedRecipient(customer);
+  const handleSearch = async (query: string) => {
+    setRecipient(query);
+    if (query.length < 3) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      // Search by account number or name
+      const { data: customers, error: customersError } = await supabase
+        .from('customers')
+        .select('id, user_id, account_number')
+        .or(`account_number.ilike.%${query}%`)
+        .neq('user_id', customer?.user_id)
+        .limit(5);
+
+      if (customersError) throw customersError;
+
+      // Get profiles for these customers
+      if (customers && customers.length > 0) {
+        const userIds = customers.map(c => c.user_id);
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, name, email')
+          .in('user_id', userIds);
+
+        const results = customers.map(c => {
+          const p = profiles?.find(p => p.user_id === c.user_id);
+          return {
+            id: c.id,
+            name: p?.name || 'Unknown',
+            accountNumber: c.account_number,
+          };
+        }).filter(r => 
+          r.name.toLowerCase().includes(query.toLowerCase()) ||
+          r.accountNumber.includes(query)
+        );
+
+        setSearchResults(results);
+      } else {
+        // Search by name in profiles
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, name, email')
+          .ilike('name', `%${query}%`)
+          .neq('user_id', customer?.user_id)
+          .limit(5);
+
+        if (profiles && profiles.length > 0) {
+          const userIds = profiles.map(p => p.user_id);
+          const { data: customersData } = await supabase
+            .from('customers')
+            .select('id, user_id, account_number')
+            .in('user_id', userIds);
+
+          const results = profiles.map(p => {
+            const c = customersData?.find(c => c.user_id === p.user_id);
+            return c ? {
+              id: c.id,
+              name: p.name,
+              accountNumber: c.account_number,
+            } : null;
+          }).filter(Boolean) as RecipientData[];
+
+          setSearchResults(results);
+        } else {
+          setSearchResults([]);
+        }
+      }
+    } catch (error) {
+      console.error('Search error:', error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleRecipientSelect = (recipientData: RecipientData) => {
+    setSelectedRecipient(recipientData);
     setStep('amount');
   };
 
@@ -27,7 +117,7 @@ export default function SendMoney() {
       toast.error('Please enter a valid amount');
       return;
     }
-    if (parseFloat(amount) > currentCustomer.balance) {
+    if (parseFloat(amount) > Number(customer?.balance || 0)) {
       toast.error('Insufficient balance');
       return;
     }
@@ -35,16 +125,92 @@ export default function SendMoney() {
   };
 
   const handleSend = async () => {
+    if (!customer || !selectedRecipient || !canSendMoney) return;
+    
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setStep('success');
-    setIsLoading(false);
+    try {
+      const transferAmount = parseFloat(amount);
+
+      // Deduct from sender's balance
+      const { error: deductError } = await supabase
+        .from('customers')
+        .update({ balance: Number(customer.balance) - transferAmount })
+        .eq('id', customer.id);
+
+      if (deductError) throw deductError;
+
+      // Add to recipient's balance
+      const { error: addError } = await supabase
+        .from('customers')
+        .update({ 
+          balance: supabase.rpc ? undefined : transferAmount // Will need edge function for atomic update
+        })
+        .eq('id', selectedRecipient.id);
+
+      // For now, just update the recipient balance directly
+      const { data: recipientData } = await supabase
+        .from('customers')
+        .select('balance')
+        .eq('id', selectedRecipient.id)
+        .single();
+      
+      if (recipientData) {
+        await supabase
+          .from('customers')
+          .update({ balance: Number(recipientData.balance) + transferAmount })
+          .eq('id', selectedRecipient.id);
+      }
+
+      // Create debit transaction for sender
+      await createTransaction.mutateAsync({
+        type: 'debit',
+        amount: transferAmount,
+        description: note || `Transfer to ${selectedRecipient.name}`,
+        recipient_name: selectedRecipient.name,
+        recipient_account: selectedRecipient.accountNumber,
+      });
+
+      // Refresh customer data
+      await refetchCustomer();
+
+      setStep('success');
+    } catch (error) {
+      console.error('Transfer error:', error);
+      toast.error('Transfer failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const formattedAmount = amount ? new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
   }).format(parseFloat(amount)) : '$0.00';
+
+  if (!canSendMoney) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8 text-center">
+        <div className="w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center mb-6">
+          <Send className="w-10 h-10 text-destructive" />
+        </div>
+        <h2 className="text-2xl font-bold mb-2 font-display">Transfers Disabled</h2>
+        <p className="text-muted-foreground mb-8">
+          {customer?.status === 'frozen' 
+            ? 'Your account is frozen. Please contact support.'
+            : customer?.status === 'blocked'
+            ? 'Your account is blocked. Please contact support.'
+            : 'Money transfers have been disabled on your account.'}
+        </p>
+        <Button
+          onClick={() => navigate('/dashboard')}
+          variant="outline"
+          className="w-full max-w-xs"
+        >
+          Back to Dashboard
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -75,56 +241,54 @@ export default function SendMoney() {
             <input
               type="text"
               value={recipient}
-              onChange={(e) => setRecipient(e.target.value)}
-              placeholder="Account number or email"
+              onChange={(e) => handleSearch(e.target.value)}
+              placeholder="Account number or name"
               className="input-bank pl-12"
             />
           </div>
 
-          {/* Recent Recipients */}
-          <div>
-            <h3 className="text-sm font-medium text-muted-foreground mb-3">Recent</h3>
-            <div className="grid grid-cols-4 gap-4">
-              {recentRecipients.map((customer) => (
-                <button
-                  key={customer.id}
-                  onClick={() => handleRecipientSelect(customer)}
-                  className="flex flex-col items-center gap-2"
-                >
-                  <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
-                    <span className="text-lg font-semibold text-primary">
-                      {customer.name.split(' ').map(n => n[0]).join('')}
-                    </span>
-                  </div>
-                  <span className="text-xs text-muted-foreground text-center line-clamp-1">
-                    {customer.name.split(' ')[0]}
-                  </span>
-                </button>
-              ))}
+          {/* Search Results */}
+          {isSearching && (
+            <div className="text-center py-4 text-muted-foreground">
+              Searching...
             </div>
-          </div>
+          )}
 
-          {/* All Contacts */}
-          <div>
-            <h3 className="text-sm font-medium text-muted-foreground mb-3">All Contacts</h3>
-            <div className="space-y-3">
-              {recentRecipients.map((customer) => (
-                <button
-                  key={customer.id}
-                  onClick={() => handleRecipientSelect(customer)}
-                  className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors"
-                >
-                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                    <User className="w-6 h-6 text-primary" />
-                  </div>
-                  <div className="flex-1 text-left">
-                    <p className="font-medium text-foreground">{customer.name}</p>
-                    <p className="text-sm text-muted-foreground">•••• {customer.accountNumber.slice(-4)}</p>
-                  </div>
-                </button>
-              ))}
+          {searchResults.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-muted-foreground mb-3">Results</h3>
+              <div className="space-y-3">
+                {searchResults.map((result) => (
+                  <button
+                    key={result.id}
+                    onClick={() => handleRecipientSelect(result)}
+                    className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                      <User className="w-6 h-6 text-primary" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-medium text-foreground">{result.name}</p>
+                      <p className="text-sm text-muted-foreground">•••• {result.accountNumber.slice(-4)}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
+
+          {recipient.length >= 3 && !isSearching && searchResults.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No recipients found</p>
+              <p className="text-sm mt-1">Try searching by name or account number</p>
+            </div>
+          )}
+
+          {recipient.length < 3 && (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>Enter at least 3 characters to search</p>
+            </div>
+          )}
         </div>
       )}
 
@@ -157,7 +321,7 @@ export default function SendMoney() {
               autoFocus
             />
             <p className="text-muted-foreground mt-2">
-              Available: ${currentCustomer.balance.toLocaleString()}
+              Available: ${Number(customer?.balance || 0).toLocaleString()}
             </p>
           </div>
 

@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { ArrowLeft, CreditCard, Plus, CheckCircle, Clock, XCircle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { CreditCard, Plus, CheckCircle, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { BottomNav } from '@/components/ui/BottomNav';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { currentCustomer } from '@/data/mockData';
+import { useCustomer } from '@/hooks/useCustomer';
+import { useCardRequests } from '@/hooks/useCardRequests';
 import { StatusBadge } from '@/components/bank/StatusBadge';
 import { toast } from 'sonner';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Dialog,
   DialogContent,
@@ -16,21 +17,40 @@ import {
 } from '@/components/ui/dialog';
 
 export default function CardsPage() {
-  const navigate = useNavigate();
+  const { customer, profile, isLoading } = useCustomer();
+  const { cardRequests, createCardRequest } = useCardRequests();
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [selectedCardType, setSelectedCardType] = useState<'debit' | 'credit'>('debit');
   const [isRequesting, setIsRequesting] = useState(false);
 
-  const hasCard = currentCustomer.cardStatus === 'approved';
-  const hasPendingRequest = currentCustomer.cardStatus === 'pending';
+  const hasCard = customer?.card_status === 'approved';
+  const hasPendingRequest = customer?.card_status === 'pending' || 
+    cardRequests.some(r => r.status === 'pending');
 
   const handleRequestCard = async () => {
     setIsRequesting(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsRequesting(false);
-    setShowRequestModal(false);
-    toast.success('Card request submitted! We\'ll review it shortly.');
+    try {
+      await createCardRequest.mutateAsync(selectedCardType);
+      setShowRequestModal(false);
+      toast.success('Card request submitted! We\'ll review it shortly.');
+    } catch (error) {
+      toast.error('Failed to submit card request. Please try again.');
+    } finally {
+      setIsRequesting(false);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background pb-24">
+        <PageHeader title="Cards" subtitle="Manage your cards" />
+        <div className="px-4">
+          <Skeleton className="h-48 w-full rounded-2xl" />
+        </div>
+        <BottomNav variant="customer" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -53,12 +73,12 @@ export default function CardsPage() {
                 <StatusBadge status="approved" className="bg-white/20 text-white" />
               </div>
               <p className="font-mono text-lg tracking-wider mb-4">
-                •••• •••• •••• {currentCustomer.accountNumber.slice(-4)}
+                •••• •••• •••• {customer?.account_number?.slice(-4) || '0000'}
               </p>
               <div className="flex justify-between items-end">
                 <div>
                   <p className="text-xs text-white/70">CARD HOLDER</p>
-                  <p className="font-medium uppercase">{currentCustomer.name}</p>
+                  <p className="font-medium uppercase">{profile?.name || 'User'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-white/70">EXPIRES</p>

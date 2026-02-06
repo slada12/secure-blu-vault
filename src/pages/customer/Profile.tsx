@@ -4,9 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { BottomNav } from '@/components/ui/BottomNav';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { currentCustomer } from '@/data/mockData';
+import { useCustomer } from '@/hooks/useCustomer';
+import { useAuth } from '@/contexts/AuthContext';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Dialog,
   DialogContent,
@@ -16,10 +19,13 @@ import {
 
 export default function ProfilePage() {
   const navigate = useNavigate();
+  const { customer, profile, isLoading } = useCustomer();
+  const { signOut } = useAuth();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
     current: '',
     new: '',
@@ -32,25 +38,57 @@ export default function ProfilePage() {
       toast.error('Passwords do not match');
       return;
     }
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    toast.success('Password updated successfully');
-    setShowPasswordModal(false);
-    setPasswordForm({ current: '', new: '', confirm: '' });
+    if (passwordForm.new.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    setIsUpdatingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: passwordForm.new,
+      });
+
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success('Password updated successfully');
+        setShowPasswordModal(false);
+        setPasswordForm({ current: '', new: '', confirm: '' });
+      }
+    } catch (error) {
+      toast.error('Failed to update password');
+    } finally {
+      setIsUpdatingPassword(false);
+    }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await signOut();
     toast.success('Logged out successfully');
     navigate('/login');
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background pb-24">
+        <PageHeader title="Profile" subtitle="Manage your account" />
+        <div className="px-4 space-y-4">
+          <Skeleton className="h-24 w-full rounded-2xl" />
+          <Skeleton className="h-40 w-full rounded-2xl" />
+        </div>
+        <BottomNav variant="customer" />
+      </div>
+    );
+  }
 
   const profileSections = [
     {
       title: 'Account',
       items: [
-        { icon: User, label: 'Personal Info', value: currentCustomer.name, onClick: () => {} },
-        { icon: Mail, label: 'Email', value: currentCustomer.email, onClick: () => {} },
-        { icon: Phone, label: 'Phone', value: currentCustomer.phone, onClick: () => {} },
+        { icon: User, label: 'Personal Info', value: profile?.name || 'User', onClick: () => {} },
+        { icon: Mail, label: 'Email', value: profile?.email || '', onClick: () => {} },
+        { icon: Phone, label: 'Phone', value: profile?.phone || 'Not set', onClick: () => {} },
       ],
     },
     {
@@ -89,13 +127,13 @@ export default function ProfilePage() {
         <div className="flex items-center gap-4 p-4 bg-card rounded-2xl card-shadow">
           <div className="w-16 h-16 rounded-full bank-card-gradient flex items-center justify-center">
             <span className="text-2xl font-bold text-white">
-              {currentCustomer.name.split(' ').map(n => n[0]).join('')}
+              {profile?.name?.split(' ').map(n => n[0]).join('') || 'U'}
             </span>
           </div>
           <div>
-            <h2 className="font-semibold text-lg">{currentCustomer.name}</h2>
+            <h2 className="font-semibold text-lg">{profile?.name || 'User'}</h2>
             <p className="text-sm text-muted-foreground">
-              Account: •••• {currentCustomer.accountNumber.slice(-4)}
+              Account: •••• {customer?.account_number?.slice(-4) || '0000'}
             </p>
           </div>
         </div>
@@ -200,8 +238,16 @@ export default function ProfilePage() {
               required
             />
 
-            <Button type="submit" className="w-full btn-gradient">
-              Update Password
+            <Button 
+              type="submit" 
+              className="w-full btn-gradient"
+              disabled={isUpdatingPassword}
+            >
+              {isUpdatingPassword ? (
+                <div className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+              ) : (
+                'Update Password'
+              )}
             </Button>
           </form>
         </DialogContent>

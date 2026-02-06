@@ -2,16 +2,18 @@ import { Users, CreditCard, AlertTriangle, TrendingUp, ArrowUpRight, ArrowDownLe
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { BottomNav } from '@/components/ui/BottomNav';
-import { mockCustomers, mockCardRequests, mockTransactions } from '@/data/mockData';
 import { StatusBadge } from '@/components/bank/StatusBadge';
+import { useAdminData } from '@/hooks/useAdminData';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
+  const { customers, cardRequests, customersLoading, cardRequestsLoading } = useAdminData();
   
-  const activeCustomers = mockCustomers.filter(c => c.status === 'active').length;
-  const blockedCustomers = mockCustomers.filter(c => c.status === 'blocked').length;
-  const pendingRequests = mockCardRequests.filter(r => r.status === 'pending').length;
-  const totalBalance = mockCustomers.reduce((sum, c) => sum + c.balance, 0);
+  const activeCustomers = customers.filter(c => c.status === 'active').length;
+  const blockedCustomers = customers.filter(c => c.status === 'blocked').length;
+  const pendingRequests = cardRequests.filter(r => r.status === 'pending').length;
+  const totalBalance = customers.reduce((sum, c) => sum + Number(c.balance), 0);
 
   const stats = [
     { icon: Users, label: 'Active Customers', value: activeCustomers, color: 'text-success' },
@@ -20,7 +22,7 @@ export default function AdminDashboard() {
     { icon: TrendingUp, label: 'Total Assets', value: `$${(totalBalance / 1000).toFixed(1)}K`, color: 'text-primary' },
   ];
 
-  const recentTransactions = mockTransactions.slice(0, 5);
+  const isLoading = customersLoading || cardRequestsLoading;
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -37,17 +39,25 @@ export default function AdminDashboard() {
 
       {/* Stats Grid */}
       <div className="px-4 -mt-4">
-        <div className="grid grid-cols-2 gap-3">
-          {stats.map((stat) => (
-            <div key={stat.label} className="bg-card rounded-xl p-4 card-shadow">
-              <div className={`w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mb-3`}>
-                <stat.icon className={`w-5 h-5 ${stat.color}`} />
+        {isLoading ? (
+          <div className="grid grid-cols-2 gap-3">
+            {[1, 2, 3, 4].map(i => (
+              <Skeleton key={i} className="h-28 rounded-xl" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {stats.map((stat) => (
+              <div key={stat.label} className="bg-card rounded-xl p-4 card-shadow">
+                <div className={`w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mb-3`}>
+                  <stat.icon className={`w-5 h-5 ${stat.color}`} />
+                </div>
+                <p className="text-2xl font-bold font-display">{stat.value}</p>
+                <p className="text-sm text-muted-foreground">{stat.label}</p>
               </div>
-              <p className="text-2xl font-bold font-display">{stat.value}</p>
-              <p className="text-sm text-muted-foreground">{stat.label}</p>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Quick Actions */}
@@ -92,7 +102,13 @@ export default function AdminDashboard() {
           </button>
         </div>
         <div className="space-y-3">
-          {mockCustomers.slice(0, 4).map((customer) => (
+          {isLoading ? (
+            <>
+              <Skeleton className="h-16 rounded-xl" />
+              <Skeleton className="h-16 rounded-xl" />
+              <Skeleton className="h-16 rounded-xl" />
+            </>
+          ) : customers.slice(0, 4).map((customer) => (
             <button
               key={customer.id}
               onClick={() => navigate(`/admin/customers/${customer.id}`)}
@@ -101,23 +117,29 @@ export default function AdminDashboard() {
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                   <span className="text-sm font-semibold text-primary">
-                    {customer.name.split(' ').map(n => n[0]).join('')}
+                    {customer.profile?.name?.split(' ').map(n => n[0]).join('') || '?'}
                   </span>
                 </div>
                 <div className="text-left">
-                  <p className="font-medium">{customer.name}</p>
+                  <p className="font-medium">{customer.profile?.name || 'Unknown'}</p>
                   <p className="text-sm text-muted-foreground">
-                    •••• {customer.accountNumber.slice(-4)}
+                    •••• {customer.account_number.slice(-4)}
                   </p>
                 </div>
               </div>
               <StatusBadge status={customer.status} />
             </button>
           ))}
+          
+          {!isLoading && customers.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No customers yet</p>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Recent Transactions */}
+      {/* Recent Activity */}
       <div className="px-4 mt-6">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold font-display">Recent Activity</h2>
@@ -129,36 +151,31 @@ export default function AdminDashboard() {
           </button>
         </div>
         <div className="space-y-3">
-          {recentTransactions.map((transaction) => {
-            const customer = mockCustomers.find(c => c.id === transaction.customerId);
-            const isCredit = transaction.type === 'credit';
-            
-            return (
+          {pendingRequests > 0 ? (
+            cardRequests.filter(r => r.status === 'pending').slice(0, 3).map((request) => (
               <div
-                key={transaction.id}
+                key={request.id}
                 className="flex items-center justify-between p-4 bg-card rounded-xl"
               >
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                    isCredit ? 'bg-success/10' : 'bg-muted'
-                  }`}>
-                    {isCredit ? (
-                      <ArrowDownLeft className="w-5 h-5 text-success" />
-                    ) : (
-                      <ArrowUpRight className="w-5 h-5 text-muted-foreground" />
-                    )}
+                  <div className="w-10 h-10 rounded-full bg-warning/10 flex items-center justify-center">
+                    <CreditCard className="w-5 h-5 text-warning" />
                   </div>
                   <div>
-                    <p className="font-medium">{customer?.name}</p>
-                    <p className="text-sm text-muted-foreground">{transaction.description}</p>
+                    <p className="font-medium">{request.customer?.profile?.name || 'Unknown'}</p>
+                    <p className="text-sm text-muted-foreground capitalize">
+                      {request.card_type} card request
+                    </p>
                   </div>
                 </div>
-                <p className={`font-semibold ${isCredit ? 'text-success' : 'text-foreground'}`}>
-                  {isCredit ? '+' : '-'}${transaction.amount.toLocaleString()}
-                </p>
+                <StatusBadge status="pending" />
               </div>
-            );
-          })}
+            ))
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No pending activity</p>
+            </div>
+          )}
         </div>
       </div>
 

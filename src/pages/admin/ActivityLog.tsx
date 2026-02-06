@@ -1,7 +1,8 @@
-import { Shield, Lock, Unlock, Snowflake, CreditCard, Check, X } from 'lucide-react';
+import { Shield, Lock, Unlock, Snowflake, Check, X } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { BottomNav } from '@/components/ui/BottomNav';
-import { mockAuditLogs } from '@/data/mockData';
+import { useAdminData } from '@/hooks/useAdminData';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const actionIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   BLOCK_CUSTOMER: Lock,
@@ -9,6 +10,8 @@ const actionIcons: Record<string, React.ComponentType<{ className?: string }>> =
   FREEZE_ACCOUNT: Snowflake,
   APPROVE_CARD: Check,
   REJECT_CARD: X,
+  DISABLE_TRANSFERS: Lock,
+  ENABLE_TRANSFERS: Unlock,
 };
 
 const actionColors: Record<string, string> = {
@@ -17,6 +20,8 @@ const actionColors: Record<string, string> = {
   FREEZE_ACCOUNT: 'bg-blue-500/10 text-blue-500',
   APPROVE_CARD: 'bg-success/10 text-success',
   REJECT_CARD: 'bg-destructive/10 text-destructive',
+  DISABLE_TRANSFERS: 'bg-warning/10 text-warning',
+  ENABLE_TRANSFERS: 'bg-success/10 text-success',
 };
 
 const actionLabels: Record<string, string> = {
@@ -25,22 +30,26 @@ const actionLabels: Record<string, string> = {
   FREEZE_ACCOUNT: 'Froze Account',
   APPROVE_CARD: 'Approved Card',
   REJECT_CARD: 'Rejected Card',
+  DISABLE_TRANSFERS: 'Disabled Transfers',
+  ENABLE_TRANSFERS: 'Enabled Transfers',
 };
 
 export default function ActivityLog() {
-  const formatDate = (date: Date) => {
+  const { auditLogs, auditLogsLoading, customers } = useAdminData();
+
+  const formatDate = (date: string) => {
     return new Intl.DateTimeFormat('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
-    }).format(date);
+    }).format(new Date(date));
   };
 
   // Group logs by date
-  const groupedLogs = mockAuditLogs.reduce((groups, log) => {
-    const date = new Date(log.createdAt).toLocaleDateString('en-US', {
+  const groupedLogs = auditLogs.reduce((groups, log) => {
+    const date = new Date(log.created_at).toLocaleDateString('en-US', {
       month: 'long',
       day: 'numeric',
       year: 'numeric',
@@ -50,7 +59,28 @@ export default function ActivityLog() {
     }
     groups[date].push(log);
     return groups;
-  }, {} as Record<string, typeof mockAuditLogs>);
+  }, {} as Record<string, typeof auditLogs>);
+
+  // Get customer name from ID
+  const getCustomerName = (customerId: string | null) => {
+    if (!customerId) return null;
+    const customer = customers.find(c => c.id === customerId);
+    return customer?.profile?.name || 'Unknown';
+  };
+
+  if (auditLogsLoading) {
+    return (
+      <div className="min-h-screen bg-background pb-24">
+        <PageHeader title="Activity Log" subtitle="Loading..." />
+        <div className="px-4 space-y-3">
+          <Skeleton className="h-24 rounded-xl" />
+          <Skeleton className="h-24 rounded-xl" />
+          <Skeleton className="h-24 rounded-xl" />
+        </div>
+        <BottomNav variant="admin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -69,6 +99,7 @@ export default function ActivityLog() {
                   const Icon = actionIcons[log.action] || Shield;
                   const colorClass = actionColors[log.action] || 'bg-muted text-muted-foreground';
                   const label = actionLabels[log.action] || log.action;
+                  const customerName = getCustomerName(log.target_customer_id);
 
                   return (
                     <div
@@ -81,16 +112,18 @@ export default function ActivityLog() {
                         </div>
                         <div className="flex-1">
                           <p className="font-medium">{label}</p>
-                          {log.targetCustomerName && (
+                          {customerName && (
                             <p className="text-sm text-muted-foreground">
-                              Target: {log.targetCustomerName}
+                              Target: {customerName}
                             </p>
                           )}
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {log.details}
-                          </p>
+                          {log.details && (
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {log.details}
+                            </p>
+                          )}
                           <p className="text-xs text-muted-foreground mt-2">
-                            {formatDate(log.createdAt)}
+                            {formatDate(log.created_at)}
                           </p>
                         </div>
                       </div>

@@ -3,9 +3,9 @@ import { CreditCard, Check, X, Clock } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { BottomNav } from '@/components/ui/BottomNav';
 import { StatusBadge } from '@/components/bank/StatusBadge';
-import { mockCardRequests } from '@/data/mockData';
-import { CardRequest } from '@/types/bank';
+import { useAdminData, AdminCardRequest } from '@/hooks/useAdminData';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -19,42 +19,62 @@ import {
 } from '@/components/ui/alert-dialog';
 
 export default function CardRequests() {
-  const [requests, setRequests] = useState<CardRequest[]>(mockCardRequests);
-  const [selectedRequest, setSelectedRequest] = useState<CardRequest | null>(null);
+  const { cardRequests, cardRequestsLoading, processCardRequest } = useAdminData();
+  const [selectedRequest, setSelectedRequest] = useState<AdminCardRequest | null>(null);
   const [actionType, setActionType] = useState<'approve' | 'reject' | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const pendingRequests = requests.filter(r => r.status === 'pending');
-  const processedRequests = requests.filter(r => r.status !== 'pending');
+  const pendingRequests = cardRequests.filter(r => r.status === 'pending');
+  const processedRequests = cardRequests.filter(r => r.status !== 'pending');
 
-  const handleAction = () => {
+  const handleAction = async () => {
     if (!selectedRequest || !actionType) return;
     
-    setRequests(prev => 
-      prev.map(r => 
-        r.id === selectedRequest.id 
-          ? { ...r, status: actionType === 'approve' ? 'approved' : 'rejected', processedAt: new Date() }
-          : r
-      )
-    );
-    
-    toast.success(
-      actionType === 'approve' 
-        ? `Card request approved for ${selectedRequest.customerName}`
-        : `Card request rejected for ${selectedRequest.customerName}`
-    );
-    
-    setSelectedRequest(null);
-    setActionType(null);
+    setIsProcessing(true);
+    try {
+      await processCardRequest.mutateAsync({
+        requestId: selectedRequest.id,
+        customerId: selectedRequest.customer_id,
+        status: actionType === 'approve' ? 'approved' : 'rejected',
+        action: actionType === 'approve' ? 'APPROVE_CARD' : 'REJECT_CARD',
+        details: `${selectedRequest.card_type} card request ${actionType === 'approve' ? 'approved' : 'rejected'}`,
+      });
+      
+      toast.success(
+        actionType === 'approve' 
+          ? `Card request approved for ${selectedRequest.customer?.profile?.name || 'customer'}`
+          : `Card request rejected for ${selectedRequest.customer?.profile?.name || 'customer'}`
+      );
+    } catch (error) {
+      toast.error('Failed to process card request');
+    } finally {
+      setIsProcessing(false);
+      setSelectedRequest(null);
+      setActionType(null);
+    }
   };
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: string) => {
     return new Intl.DateTimeFormat('en-US', {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
-    }).format(date);
+    }).format(new Date(date));
   };
+
+  if (cardRequestsLoading) {
+    return (
+      <div className="min-h-screen bg-background pb-24">
+        <PageHeader title="Card Requests" subtitle="Loading..." />
+        <div className="px-4 space-y-3">
+          <Skeleton className="h-32 rounded-2xl" />
+          <Skeleton className="h-32 rounded-2xl" />
+        </div>
+        <BottomNav variant="admin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -80,9 +100,9 @@ export default function CardRequests() {
                         <CreditCard className="w-6 h-6 text-warning" />
                       </div>
                       <div>
-                        <p className="font-semibold">{request.customerName}</p>
+                        <p className="font-semibold">{request.customer?.profile?.name || 'Unknown'}</p>
                         <p className="text-sm text-muted-foreground capitalize">
-                          {request.cardType} Card Request
+                          {request.card_type} Card Request
                         </p>
                       </div>
                     </div>
@@ -91,7 +111,7 @@ export default function CardRequests() {
                   
                   <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
                     <Clock className="w-4 h-4" />
-                    <span>Requested {formatDate(request.requestedAt)}</span>
+                    <span>Requested {formatDate(request.requested_at)}</span>
                   </div>
                   
                   <div className="flex gap-3">
@@ -152,9 +172,9 @@ export default function CardRequests() {
                       )}
                     </div>
                     <div>
-                      <p className="font-medium">{request.customerName}</p>
+                      <p className="font-medium">{request.customer?.profile?.name || 'Unknown'}</p>
                       <p className="text-sm text-muted-foreground capitalize">
-                        {request.cardType} Card
+                        {request.card_type} Card
                       </p>
                     </div>
                   </div>
@@ -178,18 +198,23 @@ export default function CardRequests() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {actionType === 'approve'
-                ? `Are you sure you want to approve the ${selectedRequest?.cardType} card request for ${selectedRequest?.customerName}?`
-                : `Are you sure you want to reject the ${selectedRequest?.cardType} card request for ${selectedRequest?.customerName}?`
+                ? `Are you sure you want to approve the ${selectedRequest?.card_type} card request for ${selectedRequest?.customer?.profile?.name || 'this customer'}?`
+                : `Are you sure you want to reject the ${selectedRequest?.card_type} card request for ${selectedRequest?.customer?.profile?.name || 'this customer'}?`
               }
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isProcessing}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleAction}
+              disabled={isProcessing}
               className={actionType === 'reject' ? 'bg-destructive hover:bg-destructive/90' : 'btn-gradient'}
             >
-              {actionType === 'approve' ? 'Approve' : 'Reject'}
+              {isProcessing ? (
+                <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+              ) : (
+                actionType === 'approve' ? 'Approve' : 'Reject'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

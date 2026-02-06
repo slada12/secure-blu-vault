@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Search, Filter, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
+import { Search, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { TransactionItem } from '@/components/bank/TransactionItem';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { BottomNav } from '@/components/ui/BottomNav';
-import { mockTransactions, currentCustomer } from '@/data/mockData';
+import { useTransactions } from '@/hooks/useTransactions';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/skeleton';
 
 type FilterType = 'all' | 'credit' | 'debit';
 
@@ -13,14 +14,13 @@ export default function TransactionHistory() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
   const navigate = useNavigate();
+  const { transactions, isLoading } = useTransactions();
   
-  const customerTransactions = mockTransactions.filter(t => t.customerId === currentCustomer.id);
-  
-  const filteredTransactions = customerTransactions.filter(transaction => {
+  const filteredTransactions = transactions.filter(transaction => {
     const matchesSearch = 
       transaction.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      transaction.recipientName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      transaction.senderName?.toLowerCase().includes(searchQuery.toLowerCase());
+      transaction.recipient_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      transaction.sender_name?.toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesFilter = 
       filter === 'all' || transaction.type === filter;
@@ -30,7 +30,7 @@ export default function TransactionHistory() {
 
   // Group transactions by date
   const groupedTransactions = filteredTransactions.reduce((groups, transaction) => {
-    const date = new Date(transaction.createdAt).toLocaleDateString('en-US', {
+    const date = new Date(transaction.created_at).toLocaleDateString('en-US', {
       month: 'long',
       day: 'numeric',
       year: 'numeric',
@@ -90,7 +90,13 @@ export default function TransactionHistory() {
 
       {/* Transactions List */}
       <div className="px-4">
-        {Object.entries(groupedTransactions).length > 0 ? (
+        {isLoading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-16 w-full rounded-xl" />
+            <Skeleton className="h-16 w-full rounded-xl" />
+            <Skeleton className="h-16 w-full rounded-xl" />
+          </div>
+        ) : Object.entries(groupedTransactions).length > 0 ? (
           Object.entries(groupedTransactions).map(([date, transactions]) => (
             <div key={date} className="mb-6">
               <h3 className="text-sm font-medium text-muted-foreground mb-3">{date}</h3>
@@ -98,7 +104,17 @@ export default function TransactionHistory() {
                 {transactions.map((transaction) => (
                   <TransactionItem
                     key={transaction.id}
-                    transaction={transaction}
+                    transaction={{
+                      id: transaction.id,
+                      customerId: transaction.customer_id,
+                      type: transaction.type,
+                      amount: Number(transaction.amount),
+                      description: transaction.description,
+                      recipientName: transaction.recipient_name || undefined,
+                      senderName: transaction.sender_name || undefined,
+                      reference: transaction.reference,
+                      createdAt: new Date(transaction.created_at),
+                    }}
                     onClick={() => navigate(`/transaction/${transaction.id}`)}
                   />
                 ))}
