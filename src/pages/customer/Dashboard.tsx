@@ -1,4 +1,5 @@
-import { Send, ArrowDownToLine, CreditCard, Smartphone, Receipt, QrCode } from 'lucide-react';
+import { useState } from 'react';
+import { Send, ArrowDownToLine, CreditCard, Eye, EyeOff, Copy, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { BankCard } from '@/components/bank/BankCard';
 import { TransactionItem } from '@/components/bank/TransactionItem';
@@ -9,18 +10,36 @@ import { useCustomer } from '@/hooks/useCustomer';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useNotifications } from '@/hooks/useNotifications';
 import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 export default function CustomerDashboard() {
   const navigate = useNavigate();
   const { customer, profile, isLoading: customerLoading } = useCustomer();
   const { transactions, isLoading: transactionsLoading } = useTransactions();
   const { unreadCount } = useNotifications();
+  const [showAccountNumber, setShowAccountNumber] = useState(false);
+  const [showReceiveDialog, setShowReceiveDialog] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const accountNumber = customer?.account_number || '0000000000';
+
+  const copyAccountNumber = () => {
+    navigator.clipboard.writeText(accountNumber);
+    setCopied(true);
+    toast.success('Account number copied!');
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const quickActions = [
     { icon: Send, label: 'Send', onClick: () => navigate('/send-money'), variant: 'primary' as const },
-    { icon: ArrowDownToLine, label: 'Receive', onClick: () => navigate('/receive-money') },
+    { icon: ArrowDownToLine, label: 'Receive', onClick: () => setShowReceiveDialog(true) },
     { icon: CreditCard, label: 'Cards', onClick: () => navigate('/cards') },
-    { icon: Smartphone, label: 'Top Up', onClick: () => navigate('/top-up') },
   ];
 
   if (customerLoading) {
@@ -77,26 +96,24 @@ export default function CustomerDashboard() {
         </div>
       </div>
 
-      {/* More Actions */}
+      {/* Account Number Toggle */}
       <div className="px-4 mt-6">
-        <div className="flex gap-3">
-          <button 
-            onClick={() => navigate('/pay-bill')}
-            className="flex-1 flex items-center gap-3 p-4 bg-card rounded-xl card-shadow"
+        <div className="flex items-center justify-between p-4 bg-card rounded-xl card-shadow">
+          <div>
+            <p className="text-sm text-muted-foreground">Account Number</p>
+            <p className="font-mono text-lg font-semibold text-foreground tracking-wider">
+              {showAccountNumber ? accountNumber : '•••• •••• ••'}
+            </p>
+          </div>
+          <button
+            onClick={() => setShowAccountNumber(!showAccountNumber)}
+            className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center"
           >
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-              <Receipt className="w-5 h-5 text-primary" />
-            </div>
-            <span className="font-medium text-foreground">Pay Bills</span>
-          </button>
-          <button 
-            onClick={() => navigate('/scan-qr')}
-            className="flex-1 flex items-center gap-3 p-4 bg-card rounded-xl card-shadow"
-          >
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-              <QrCode className="w-5 h-5 text-primary" />
-            </div>
-            <span className="font-medium text-foreground">Scan QR</span>
+            {showAccountNumber ? (
+              <EyeOff className="w-5 h-5 text-primary" />
+            ) : (
+              <Eye className="w-5 h-5 text-primary" />
+            )}
           </button>
         </div>
       </div>
@@ -150,6 +167,41 @@ export default function CustomerDashboard() {
           )}
         </div>
       </div>
+
+      {/* Receive Money Dialog */}
+      <Dialog open={showReceiveDialog} onOpenChange={setShowReceiveDialog}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-display">Receive Money</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Share your account number below to receive money.
+            </p>
+            <div className="flex items-center gap-3 p-4 bg-muted rounded-xl">
+              <div className="flex-1">
+                <p className="text-xs text-muted-foreground mb-1">Account Number</p>
+                <p className="font-mono text-xl font-bold text-foreground tracking-wider">
+                  {accountNumber}
+                </p>
+              </div>
+              <button
+                onClick={copyAccountNumber}
+                className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center"
+              >
+                {copied ? (
+                  <Check className="w-5 h-5 text-primary" />
+                ) : (
+                  <Copy className="w-5 h-5 text-primary" />
+                )}
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground text-center">
+              {profile?.name || 'Account Holder'}
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <BottomNav variant="customer" />
     </div>
