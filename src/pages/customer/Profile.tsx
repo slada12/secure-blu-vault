@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User, Mail, Phone, Shield, Lock, ChevronRight, LogOut, Bell, Eye, EyeOff } from 'lucide-react';
+import { User, Mail, Phone, Shield, Lock, ChevronRight, LogOut, Bell, Eye, EyeOff, Hash, CreditCard } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { BottomNav } from '@/components/ui/BottomNav';
@@ -22,6 +22,7 @@ export default function ProfilePage() {
   const { customer, profile, isLoading } = useCustomer();
   const { signOut } = useAuth();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showAccountDetails, setShowAccountDetails] = useState(false);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -82,13 +83,38 @@ export default function ProfilePage() {
     );
   }
 
+  const ROUTING_NUMBER = '021000021';
+
   const profileSections = [
     {
-      title: 'Account',
+      title: 'Personal Information',
       items: [
-        { icon: User, label: 'Personal Info', value: profile?.name || 'User', onClick: () => {} },
-        { icon: Mail, label: 'Email', value: profile?.email || '', onClick: () => {} },
-        { icon: Phone, label: 'Phone', value: profile?.phone || 'Not set', onClick: () => {} },
+        { icon: User, label: 'Full Name', value: profile?.name || 'User', onClick: () => {} },
+        { icon: Mail, label: 'Email Address', value: profile?.email || '', onClick: () => {} },
+        { icon: Phone, label: 'Phone Number', value: profile?.phone || 'Not set', onClick: () => {} },
+      ],
+    },
+    {
+      title: 'Account Information',
+      items: [
+        { 
+          icon: Hash, 
+          label: 'Account Number', 
+          value: showAccountDetails ? customer?.account_number : `•••• •••• ${customer?.account_number?.slice(-4) || '0000'}`,
+          onClick: () => setShowAccountDetails(!showAccountDetails),
+        },
+        {
+          icon: CreditCard,
+          label: 'Routing Number',
+          value: showAccountDetails ? ROUTING_NUMBER : '•••••••••',
+          onClick: () => setShowAccountDetails(!showAccountDetails),
+        },
+        {
+          icon: User,
+          label: 'Account Status',
+          value: customer?.status ? customer.status.charAt(0).toUpperCase() + customer.status.slice(1) : 'Active',
+          onClick: () => {},
+        },
       ],
     },
     {
@@ -130,8 +156,9 @@ export default function ProfilePage() {
               {profile?.name?.split(' ').map(n => n[0]).join('') || 'U'}
             </span>
           </div>
-          <div>
+          <div className="flex-1">
             <h2 className="font-semibold text-lg">{profile?.name || 'User'}</h2>
+            <p className="text-sm text-muted-foreground">{profile?.email}</p>
             <p className="text-sm text-muted-foreground">
               Account: •••• {customer?.account_number?.slice(-4) || '0000'}
             </p>

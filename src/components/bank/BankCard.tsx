@@ -5,10 +5,11 @@ interface BankCardProps {
   name: string;
   accountNumber: string;
   balance: number;
+  showBalance?: boolean;
   className?: string;
 }
 
-export function BankCard({ name, accountNumber, balance, className }: BankCardProps) {
+export function BankCard({ name, accountNumber, balance, showBalance = true, className }: BankCardProps) {
   const formattedBalance = new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -35,7 +36,9 @@ export function BankCard({ name, accountNumber, balance, className }: BankCardPr
         <div className="flex items-start justify-between">
           <div>
             <p className="text-sm text-white/70 mb-1">Current Balance</p>
-            <p className="text-2xl font-bold balance-text">{formattedBalance}</p>
+            <p className="text-2xl font-bold balance-text">
+              {showBalance ? formattedBalance : '••••••'}
+            </p>
           </div>
           <Wifi className="w-6 h-6 rotate-90 text-white/70" />
         </div>

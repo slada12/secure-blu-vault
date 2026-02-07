@@ -18,12 +18,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
+const ROUTING_NUMBER = '021000021';
+
 export default function CustomerDashboard() {
   const navigate = useNavigate();
   const { customer, profile, isLoading: customerLoading } = useCustomer();
   const { transactions, isLoading: transactionsLoading } = useTransactions();
   const { unreadCount } = useNotifications();
   const [showAccountNumber, setShowAccountNumber] = useState(false);
+  const [showBalance, setShowBalance] = useState(true);
   const [showReceiveDialog, setShowReceiveDialog] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -75,6 +78,7 @@ export default function CustomerDashboard() {
             name={profile?.name || 'User'}
             accountNumber={customer?.account_number || '0000000000'}
             balance={Number(customer?.balance) || 0}
+            showBalance={showBalance}
           />
         </div>
       </div>
@@ -96,13 +100,39 @@ export default function CustomerDashboard() {
         </div>
       </div>
 
-      {/* Account Number Toggle */}
+      {/* Balance Toggle */}
       <div className="px-4 mt-6">
         <div className="flex items-center justify-between p-4 bg-card rounded-xl card-shadow">
           <div>
+            <p className="text-sm text-muted-foreground">Balance Visibility</p>
+            <p className="text-sm font-medium text-foreground">
+              {showBalance ? 'Balance is visible' : 'Balance is hidden'}
+            </p>
+          </div>
+          <button
+            onClick={() => setShowBalance(!showBalance)}
+            className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center"
+          >
+            {showBalance ? (
+              <EyeOff className="w-5 h-5 text-primary" />
+            ) : (
+              <Eye className="w-5 h-5 text-primary" />
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Account Number & Routing Number */}
+      <div className="px-4 mt-4">
+        <div className="flex items-center justify-between p-4 bg-card rounded-xl card-shadow">
+          <div className="flex-1">
             <p className="text-sm text-muted-foreground">Account Number</p>
             <p className="font-mono text-lg font-semibold text-foreground tracking-wider">
               {showAccountNumber ? accountNumber : '•••• •••• ••'}
+            </p>
+            <p className="text-sm text-muted-foreground mt-2">Routing Number</p>
+            <p className="font-mono text-sm font-medium text-foreground">
+              {showAccountNumber ? ROUTING_NUMBER : '•••••••••'}
             </p>
           </div>
           <button
@@ -176,23 +206,29 @@ export default function CustomerDashboard() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <p className="text-sm text-muted-foreground">
-              Share your account number below to receive money.
+              Share your account details below to receive money.
             </p>
-            <div className="flex items-center gap-3 p-4 bg-muted rounded-xl">
-              <div className="flex-1">
+            <div className="space-y-3 p-4 bg-muted rounded-xl">
+              <div>
                 <p className="text-xs text-muted-foreground mb-1">Account Number</p>
                 <p className="font-mono text-xl font-bold text-foreground tracking-wider">
                   {accountNumber}
                 </p>
               </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Routing Number</p>
+                <p className="font-mono text-lg font-semibold text-foreground tracking-wider">
+                  {ROUTING_NUMBER}
+                </p>
+              </div>
               <button
                 onClick={copyAccountNumber}
-                className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center"
+                className="w-full flex items-center justify-center gap-2 mt-2 px-4 py-2 bg-primary/10 text-primary rounded-lg text-sm font-medium"
               >
                 {copied ? (
-                  <Check className="w-5 h-5 text-primary" />
+                  <><Check className="w-4 h-4" /> Copied!</>
                 ) : (
-                  <Copy className="w-5 h-5 text-primary" />
+                  <><Copy className="w-4 h-4" /> Copy Account Number</>
                 )}
               </button>
             </div>
