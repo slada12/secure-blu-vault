@@ -24,10 +24,16 @@ export default function CustomerManagement() {
   const { customers, customersLoading, updateCustomerStatus } = useAdminData();
 
   const filteredCustomers = customers.filter(customer => {
+    const query = searchQuery.trim().toLowerCase();
+    const balanceNum = parseFloat(query);
+    const isBalanceSearch = !isNaN(balanceNum) && query.length > 0;
+    
     const matchesSearch = 
-      customer.profile?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      customer.profile?.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      customer.account_number.includes(searchQuery);
+      !query ||
+      customer.profile?.name?.toLowerCase().includes(query) ||
+      customer.profile?.email?.toLowerCase().includes(query) ||
+      customer.account_number.includes(query) ||
+      (isBalanceSearch && Number(customer.balance) === balanceNum);
     
     const matchesFilter = 
       filter === 'all' || customer.status === filter;
@@ -85,13 +91,13 @@ export default function CustomerManagement() {
 
       {/* Search */}
       <div className="px-4 mb-4">
-        <div className="relative">
+      <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by name, email, or account..."
+            placeholder="Search by name, email, account, or balance..."
             className="input-bank pl-12"
           />
         </div>

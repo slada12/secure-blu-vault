@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Mail, Phone, CreditCard, Lock, Unlock, Snowflake, Send, History, Ban, Pencil } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, CreditCard, Lock, Unlock, Snowflake, Send, History, Ban, Pencil, Plus } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/bank/StatusBadge';
@@ -42,6 +42,13 @@ export default function CustomerDetail() {
   const [editingTxn, setEditingTxn] = useState<any>(null);
   const [editAmount, setEditAmount] = useState('');
   const [editDate, setEditDate] = useState('');
+  const [showAddTxn, setShowAddTxn] = useState(false);
+  const [newTxnType, setNewTxnType] = useState<'credit' | 'debit'>('credit');
+  const [newTxnAmount, setNewTxnAmount] = useState('');
+  const [newTxnDescription, setNewTxnDescription] = useState('');
+  const [newTxnDate, setNewTxnDate] = useState('');
+  const [newTxnName, setNewTxnName] = useState('');
+  const [isAddingTxn, setIsAddingTxn] = useState(false);
   
   const customer = customers.find(c => c.id === customerId);
 
@@ -299,9 +306,26 @@ export default function CustomerDetail() {
 
       {/* Recent Transactions */}
       <div className="px-4 mt-6">
-        <div className="flex items-center gap-2 mb-3">
-          <History className="w-5 h-5 text-muted-foreground" />
-          <h3 className="text-lg font-semibold font-display">Recent Transactions</h3>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <History className="w-5 h-5 text-muted-foreground" />
+            <h3 className="text-lg font-semibold font-display">Transaction History</h3>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => {
+              setShowAddTxn(true);
+              setNewTxnType('credit');
+              setNewTxnAmount('');
+              setNewTxnDescription('');
+              setNewTxnName('');
+              setNewTxnDate(new Date().toISOString().slice(0, 16));
+            }}
+            className="gap-1"
+          >
+            <Plus className="w-4 h-4" />
+            Add
+          </Button>
         </div>
         <div className="space-y-3">
           {transactionsLoading ? (
@@ -433,6 +457,124 @@ export default function CustomerDetail() {
               }
             }}>
               Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Transaction Dialog */}
+      <Dialog open={showAddTxn} onOpenChange={setShowAddTxn}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Transaction History</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="text-sm font-medium mb-1 block">Type</label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={newTxnType === 'credit' ? 'default' : 'outline'}
+                  onClick={() => setNewTxnType('credit')}
+                  className="flex-1"
+                >
+                  Credit (Incoming)
+                </Button>
+                <Button
+                  type="button"
+                  variant={newTxnType === 'debit' ? 'default' : 'outline'}
+                  onClick={() => setNewTxnType('debit')}
+                  className="flex-1"
+                >
+                  Debit (Outgoing)
+                </Button>
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Amount ($)</label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0.01"
+                placeholder="0.00"
+                value={newTxnAmount}
+                onChange={(e) => setNewTxnAmount(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Description</label>
+              <Input
+                placeholder="e.g. Wire transfer, Deposit..."
+                value={newTxnDescription}
+                onChange={(e) => setNewTxnDescription(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">
+                {newTxnType === 'credit' ? 'Sender Name' : 'Recipient Name'}
+              </label>
+              <Input
+                placeholder="Full name"
+                value={newTxnName}
+                onChange={(e) => setNewTxnName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Date & Time</label>
+              <Input
+                type="datetime-local"
+                value={newTxnDate}
+                onChange={(e) => setNewTxnDate(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddTxn(false)}>Cancel</Button>
+            <Button
+              disabled={isAddingTxn || !newTxnAmount || !newTxnDescription}
+              onClick={async () => {
+                if (!customerId) return;
+                setIsAddingTxn(true);
+                try {
+                  const reference = `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+                  const { error } = await supabase
+                    .from('transactions')
+                    .insert({
+                      customer_id: customerId,
+                      type: newTxnType,
+                      amount: parseFloat(newTxnAmount),
+                      description: newTxnDescription,
+                      reference,
+                      status: 'completed' as any,
+                      created_at: new Date(newTxnDate).toISOString(),
+                      ...(newTxnType === 'credit'
+                        ? { sender_name: newTxnName || null }
+                        : { recipient_name: newTxnName || null }),
+                    });
+                  if (error) throw error;
+
+                  await supabase.from('audit_logs').insert({
+                    admin_id: user?.id,
+                    action: 'ADD_TRANSACTION',
+                    target_customer_id: customerId,
+                    details: `Added ${newTxnType} transaction: $${newTxnAmount} - ${newTxnDescription}`,
+                  });
+
+                  queryClient.invalidateQueries({ queryKey: ['admin-customer-transactions', customerId] });
+                  toast.success('Transaction added successfully');
+                  setShowAddTxn(false);
+                } catch {
+                  toast.error('Failed to add transaction');
+                } finally {
+                  setIsAddingTxn(false);
+                }
+              }}
+            >
+              {isAddingTxn ? (
+                <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+              ) : (
+                'Add Transaction'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
