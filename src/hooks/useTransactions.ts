@@ -45,6 +45,7 @@ export function useTransactions() {
       sender_name?: string;
       recipient_account?: string;
       sender_account?: string;
+      status?: 'pending' | 'completed';
     }) => {
       if (!customer) throw new Error('No customer found');
       
@@ -62,7 +63,8 @@ export function useTransactions() {
           recipient_account: transaction.recipient_account,
           sender_account: transaction.sender_account,
           reference,
-        })
+          status: transaction.status || 'completed',
+        } as any)
         .select()
         .single();
       

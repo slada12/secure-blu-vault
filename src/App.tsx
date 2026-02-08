@@ -29,6 +29,7 @@ import CustomerManagement from "./pages/admin/CustomerManagement";
 import CustomerDetail from "./pages/admin/CustomerDetail";
 import CardRequests from "./pages/admin/CardRequests";
 import ActivityLog from "./pages/admin/ActivityLog";
+import PendingTransfers from "./pages/admin/PendingTransfers";
 
 const queryClient = new QueryClient();
 
@@ -91,6 +92,11 @@ const App = () => (
             <Route path="/admin/customers/:customerId" element={
               <ProtectedRoute requireAdmin>
                 <CustomerDetail />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/transfers" element={
+              <ProtectedRoute requireAdmin>
+                <PendingTransfers />
               </ProtectedRoute>
             } />
             <Route path="/admin/requests" element={

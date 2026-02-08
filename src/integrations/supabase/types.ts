@@ -198,6 +198,7 @@ export type Database = {
           reference: string
           sender_account: string | null
           sender_name: string | null
+          status: Database["public"]["Enums"]["transaction_status"]
           type: Database["public"]["Enums"]["transaction_type"]
         }
         Insert: {
@@ -211,6 +212,7 @@ export type Database = {
           reference: string
           sender_account?: string | null
           sender_name?: string | null
+          status?: Database["public"]["Enums"]["transaction_status"]
           type: Database["public"]["Enums"]["transaction_type"]
         }
         Update: {
@@ -224,6 +226,7 @@ export type Database = {
           reference?: string
           sender_account?: string | null
           sender_name?: string | null
+          status?: Database["public"]["Enums"]["transaction_status"]
           type?: Database["public"]["Enums"]["transaction_type"]
         }
         Relationships: [
@@ -277,6 +280,7 @@ export type Database = {
       app_role: "admin" | "customer"
       card_request_status: "pending" | "approved" | "rejected"
       card_status: "none" | "pending" | "approved" | "rejected"
+      transaction_status: "pending" | "completed" | "rejected"
       transaction_type: "credit" | "debit"
     }
     CompositeTypes: {
@@ -409,6 +413,7 @@ export const Constants = {
       app_role: ["admin", "customer"],
       card_request_status: ["pending", "approved", "rejected"],
       card_status: ["none", "pending", "approved", "rejected"],
+      transaction_status: ["pending", "completed", "rejected"],
       transaction_type: ["credit", "debit"],
     },
   },

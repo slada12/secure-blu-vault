@@ -1,4 +1,4 @@
-import { Home, History, CreditCard, User, Settings, Users, FileText, Bell } from 'lucide-react';
+import { Home, History, CreditCard, User, Settings, Users, FileText, Bell, ArrowRightLeft } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
@@ -22,6 +22,7 @@ const customerNavItems: NavItem[] = [
 const adminNavItems: NavItem[] = [
   { icon: Home, label: 'Dashboard', path: '/admin' },
   { icon: Users, label: 'Customers', path: '/admin/customers' },
+  { icon: ArrowRightLeft, label: 'Transfers', path: '/admin/transfers' },
   { icon: FileText, label: 'Requests', path: '/admin/requests' },
   { icon: Bell, label: 'Activity', path: '/admin/activity' },
 ];

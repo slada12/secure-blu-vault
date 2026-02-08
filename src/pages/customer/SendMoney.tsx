@@ -127,31 +127,44 @@ export default function SendMoney() {
     setStep('confirm');
   };
 
+  // Check if recipient is internal (same bank) based on whether they were found in our customers table
+  const isInternalTransfer = selectedRecipient !== null; // All searchable recipients are internal
+
   const handleSend = async () => {
     if (!customer || !selectedRecipient || !canSendMoney) return;
 
     setIsLoading(true);
     try {
       const transferAmount = parseFloat(amount);
+      const isInternal = true; // Recipient was found in our bank
 
-      const { error: deductError } = await supabase
-        .from('customers')
-        .update({ balance: Number(customer.balance) - transferAmount })
-        .eq('id', customer.id);
-
-      if (deductError) throw deductError;
-
-      const { data: recipientData } = await supabase
-        .from('customers')
-        .select('balance')
-        .eq('id', selectedRecipient.id)
-        .single();
-
-      if (recipientData) {
-        await supabase
+      if (isInternal) {
+        // Internal transfer: deduct sender, credit recipient, status = completed
+        const { error: deductError } = await supabase
           .from('customers')
-          .update({ balance: Number(recipientData.balance) + transferAmount })
-          .eq('id', selectedRecipient.id);
+          .update({ balance: Number(customer.balance) - transferAmount })
+          .eq('id', customer.id);
+        if (deductError) throw deductError;
+
+        const { data: recipientData } = await supabase
+          .from('customers')
+          .select('balance')
+          .eq('id', selectedRecipient.id)
+          .single();
+
+        if (recipientData) {
+          await supabase
+            .from('customers')
+            .update({ balance: Number(recipientData.balance) + transferAmount })
+            .eq('id', selectedRecipient.id);
+        }
+      } else {
+        // External transfer: deduct sender, status = pending (admin must approve)
+        const { error: deductError } = await supabase
+          .from('customers')
+          .update({ balance: Number(customer.balance) - transferAmount })
+          .eq('id', customer.id);
+        if (deductError) throw deductError;
       }
 
       const result = await createTransaction.mutateAsync({
@@ -160,6 +173,7 @@ export default function SendMoney() {
         description: note || `${transferType === 'domestic' ? 'Domestic' : 'International'} wire to ${selectedRecipient.name}`,
         recipient_name: selectedRecipient.name,
         recipient_account: selectedRecipient.accountNumber,
+        status: isInternal ? 'completed' : 'pending',
       });
 
       setLastReference(result.reference);

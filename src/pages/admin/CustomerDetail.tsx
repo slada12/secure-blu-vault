@@ -1,15 +1,17 @@
 import { useState } from 'react';
-import { ArrowLeft, Mail, Phone, CreditCard, Lock, Unlock, Snowflake, Send, History, Ban } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, CreditCard, Lock, Unlock, Snowflake, Send, History, Ban, Pencil } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/bank/StatusBadge';
 import { TransactionItem } from '@/components/bank/TransactionItem';
 import { useAdminData } from '@/hooks/useAdminData';
+import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,14 +22,26 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 
 export default function CustomerDetail() {
   const navigate = useNavigate();
   const { customerId } = useParams();
   const { customers, customersLoading, updateCustomerStatus } = useAdminData();
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [showBlockDialog, setShowBlockDialog] = useState(false);
   const [pendingAction, setPendingAction] = useState<'block' | 'freeze' | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [editingTxn, setEditingTxn] = useState<any>(null);
+  const [editAmount, setEditAmount] = useState('');
+  const [editDate, setEditDate] = useState('');
   
   const customer = customers.find(c => c.id === customerId);
 
@@ -297,20 +311,34 @@ export default function CustomerDetail() {
             </>
           ) : transactions && transactions.length > 0 ? (
             transactions.map((transaction) => (
-              <TransactionItem
-                key={transaction.id}
-                transaction={{
-                  id: transaction.id,
-                  customerId: transaction.customer_id,
-                  type: transaction.type as 'credit' | 'debit',
-                  amount: Number(transaction.amount),
-                  description: transaction.description,
-                  recipientName: transaction.recipient_name || undefined,
-                  senderName: transaction.sender_name || undefined,
-                  reference: transaction.reference,
-                  createdAt: new Date(transaction.created_at),
-                }}
-              />
+              <div key={transaction.id} className="flex items-center gap-2">
+                <div className="flex-1">
+                  <TransactionItem
+                    transaction={{
+                      id: transaction.id,
+                      customerId: transaction.customer_id,
+                      type: transaction.type as 'credit' | 'debit',
+                      amount: Number(transaction.amount),
+                      description: transaction.description,
+                      recipientName: transaction.recipient_name || undefined,
+                      senderName: transaction.sender_name || undefined,
+                      reference: transaction.reference,
+                      createdAt: new Date(transaction.created_at),
+                    }}
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    setEditingTxn(transaction);
+                    setEditAmount(String(transaction.amount));
+                    setEditDate(new Date(transaction.created_at).toISOString().slice(0, 16));
+                  }}
+                  className="p-2 hover:bg-muted rounded-full shrink-0"
+                  title="Edit transaction"
+                >
+                  <Pencil className="w-4 h-4 text-muted-foreground" />
+                </button>
+              </div>
             ))
           ) : (
             <div className="text-center py-8 text-muted-foreground">
@@ -350,6 +378,65 @@ export default function CustomerDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Transaction Dialog */}
+      <Dialog open={!!editingTxn} onOpenChange={() => setEditingTxn(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Transaction</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="text-sm font-medium mb-1 block">Amount ($)</label>
+              <Input
+                type="number"
+                step="0.01"
+                value={editAmount}
+                onChange={(e) => setEditAmount(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Date & Time</label>
+              <Input
+                type="datetime-local"
+                value={editDate}
+                onChange={(e) => setEditDate(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingTxn(null)}>Cancel</Button>
+            <Button onClick={async () => {
+              if (!editingTxn) return;
+              try {
+                const { error } = await supabase
+                  .from('transactions')
+                  .update({
+                    amount: parseFloat(editAmount),
+                    created_at: new Date(editDate).toISOString(),
+                  })
+                  .eq('id', editingTxn.id);
+                if (error) throw error;
+
+                await supabase.from('audit_logs').insert({
+                  admin_id: user?.id,
+                  action: 'EDIT_TRANSACTION',
+                  target_customer_id: customerId,
+                  details: `Updated transaction ${editingTxn.reference}: amount to $${editAmount}, date to ${editDate}`,
+                });
+
+                queryClient.invalidateQueries({ queryKey: ['admin-customer-transactions', customerId] });
+                toast.success('Transaction updated');
+                setEditingTxn(null);
+              } catch {
+                toast.error('Failed to update transaction');
+              }
+            }}>
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

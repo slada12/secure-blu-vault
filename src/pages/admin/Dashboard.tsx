@@ -1,4 +1,4 @@
-import { Users, CreditCard, AlertTriangle, TrendingUp, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { Users, CreditCard, AlertTriangle, TrendingUp, ArrowUpRight, ArrowDownLeft, ArrowRightLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { BottomNav } from '@/components/ui/BottomNav';
@@ -86,6 +86,15 @@ export default function AdminDashboard() {
                 {pendingRequests}
               </span>
             )}
+          </button>
+          <button
+            onClick={() => navigate('/admin/transfers')}
+            className="flex items-center gap-3 p-4 bg-card rounded-xl card-shadow"
+          >
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <ArrowRightLeft className="w-5 h-5 text-primary" />
+            </div>
+            <span className="font-medium">Pending Transfers</span>
           </button>
         </div>
       </div>
