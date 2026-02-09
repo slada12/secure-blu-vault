@@ -95,7 +95,9 @@ export type Database = {
           can_send_money: boolean
           card_status: Database["public"]["Enums"]["card_status"]
           created_at: string
+          currency: string
           id: string
+          routing_number: string | null
           status: Database["public"]["Enums"]["account_status"]
           updated_at: string
           user_id: string
@@ -107,7 +109,9 @@ export type Database = {
           can_send_money?: boolean
           card_status?: Database["public"]["Enums"]["card_status"]
           created_at?: string
+          currency?: string
           id?: string
+          routing_number?: string | null
           status?: Database["public"]["Enums"]["account_status"]
           updated_at?: string
           user_id: string
@@ -119,7 +123,9 @@ export type Database = {
           can_send_money?: boolean
           card_status?: Database["public"]["Enums"]["card_status"]
           created_at?: string
+          currency?: string
           id?: string
+          routing_number?: string | null
           status?: Database["public"]["Enums"]["account_status"]
           updated_at?: string
           user_id?: string
@@ -157,9 +163,12 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          date_of_birth: string | null
           email: string
+          home_address: string | null
           id: string
           name: string
+          nationality: string | null
           phone: string | null
           updated_at: string
           user_id: string
@@ -167,9 +176,12 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          date_of_birth?: string | null
           email: string
+          home_address?: string | null
           id?: string
           name: string
+          nationality?: string | null
           phone?: string | null
           updated_at?: string
           user_id: string
@@ -177,9 +189,12 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           created_at?: string
+          date_of_birth?: string | null
           email?: string
+          home_address?: string | null
           id?: string
           name?: string
+          nationality?: string | null
           phone?: string | null
           updated_at?: string
           user_id?: string
@@ -260,12 +275,54 @@ export type Database = {
         }
         Relationships: []
       }
+      virtual_cards: {
+        Row: {
+          card_number: string
+          created_at: string
+          customer_id: string
+          cvv: string
+          expiry_month: number
+          expiry_year: number
+          id: string
+          is_frozen: boolean
+        }
+        Insert: {
+          card_number: string
+          created_at?: string
+          customer_id: string
+          cvv: string
+          expiry_month: number
+          expiry_year: number
+          id?: string
+          is_frozen?: boolean
+        }
+        Update: {
+          card_number?: string
+          created_at?: string
+          customer_id?: string
+          cvv?: string
+          expiry_month?: number
+          expiry_year?: number
+          id?: string
+          is_frozen?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "virtual_cards_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: true
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
       generate_account_number: { Args: never; Returns: string }
+      generate_routing_number: { Args: never; Returns: string }
       get_customer_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {

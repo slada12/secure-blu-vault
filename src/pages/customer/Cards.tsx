@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CreditCard, Plus, CheckCircle, Clock } from 'lucide-react';
+import { CreditCard, Plus, CheckCircle, Clock, Snowflake, Eye, EyeOff, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { BottomNav } from '@/components/ui/BottomNav';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -8,6 +8,8 @@ import { useCardRequests } from '@/hooks/useCardRequests';
 import { StatusBadge } from '@/components/bank/StatusBadge';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
   DialogContent,
@@ -19,13 +21,34 @@ import {
 export default function CardsPage() {
   const { customer, profile, isLoading } = useCustomer();
   const { cardRequests, createCardRequest } = useCardRequests();
+  const queryClient = useQueryClient();
   const [showRequestModal, setShowRequestModal] = useState(false);
+  const [showCardDetails, setShowCardDetails] = useState(false);
   const [selectedCardType, setSelectedCardType] = useState<'debit' | 'credit'>('debit');
   const [isRequesting, setIsRequesting] = useState(false);
+  const [showCVV, setShowCVV] = useState(false);
+  const [showFullNumber, setShowFullNumber] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const hasCard = customer?.card_status === 'approved';
   const hasPendingRequest = customer?.card_status === 'pending' || 
     cardRequests.some(r => r.status === 'pending');
+
+  // Fetch virtual card details
+  const { data: virtualCard } = useQuery({
+    queryKey: ['virtual-card', customer?.id],
+    queryFn: async () => {
+      if (!customer?.id) return null;
+      const { data, error } = await supabase
+        .from('virtual_cards')
+        .select('*')
+        .eq('customer_id', customer.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!customer?.id && hasCard,
+  });
 
   const handleRequestCard = async () => {
     setIsRequesting(true);
@@ -37,6 +60,34 @@ export default function CardsPage() {
       toast.error('Failed to submit card request. Please try again.');
     } finally {
       setIsRequesting(false);
+    }
+  };
+
+  const handleFreezeToggle = async () => {
+    if (!virtualCard) return;
+    try {
+      const { error } = await supabase
+        .from('virtual_cards')
+        .update({ is_frozen: !virtualCard.is_frozen })
+        .eq('id', virtualCard.id);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['virtual-card'] });
+      toast.success(virtualCard.is_frozen ? 'Card unfrozen' : 'Card frozen');
+    } catch {
+      toast.error('Failed to update card status');
+    }
+  };
+
+  const formatCardNumber = (num: string) => {
+    return num.replace(/(.{4})/g, '$1 ').trim();
+  };
+
+  const copyCardNumber = () => {
+    if (virtualCard) {
+      navigator.clipboard.writeText(virtualCard.card_number);
+      setCopied(true);
+      toast.success('Card number copied!');
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -54,50 +105,64 @@ export default function CardsPage() {
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      <PageHeader 
-        title="Cards"
-        subtitle="Manage your cards"
-      />
+      <PageHeader title="Cards" subtitle="Manage your cards" />
 
       <div className="px-4 space-y-6">
-        {/* Current Card or Request Option */}
         {hasCard ? (
           <div className="space-y-4">
             {/* Active Card */}
-            <div className="bank-card-gradient rounded-2xl p-6 text-white">
+            <div className={`bank-card-gradient rounded-2xl p-6 text-white relative ${virtualCard?.is_frozen ? 'opacity-70' : ''}`}>
+              {virtualCard?.is_frozen && (
+                <div className="absolute top-3 right-3 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 flex items-center gap-1">
+                  <Snowflake className="w-4 h-4" />
+                  <span className="text-xs font-medium">Frozen</span>
+                </div>
+              )}
               <div className="flex justify-between items-start mb-8">
                 <div>
                   <p className="text-sm text-white/70">NexusBank</p>
                   <p className="font-semibold">Debit Card</p>
                 </div>
-                <StatusBadge status="approved" className="bg-white/20 text-white" />
               </div>
               <p className="font-mono text-lg tracking-wider mb-4">
-                •••• •••• •••• {customer?.account_number?.slice(-4) || '0000'}
+                {showFullNumber && virtualCard
+                  ? formatCardNumber(virtualCard.card_number)
+                  : `•••• •••• •••• ${virtualCard?.card_number?.slice(-4) || customer?.account_number?.slice(-4) || '0000'}`
+                }
               </p>
               <div className="flex justify-between items-end">
                 <div>
                   <p className="text-xs text-white/70">CARD HOLDER</p>
                   <p className="font-medium uppercase">{profile?.name || 'User'}</p>
                 </div>
-                <div>
+                <div className="text-right">
                   <p className="text-xs text-white/70">EXPIRES</p>
-                  <p className="font-medium">12/28</p>
+                  <p className="font-medium">
+                    {virtualCard ? `${String(virtualCard.expiry_month).padStart(2, '0')}/${String(virtualCard.expiry_year).slice(-2)}` : '••/••'}
+                  </p>
                 </div>
               </div>
             </div>
 
             {/* Card Actions */}
             <div className="grid grid-cols-2 gap-3">
-              <button className="p-4 bg-card rounded-xl card-shadow text-center">
+              <button
+                onClick={handleFreezeToggle}
+                className="p-4 bg-card rounded-xl card-shadow text-center"
+              >
                 <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-primary/10 flex items-center justify-center">
-                  <CreditCard className="w-5 h-5 text-primary" />
+                  <Snowflake className="w-5 h-5 text-primary" />
                 </div>
-                <span className="text-sm font-medium">Freeze Card</span>
+                <span className="text-sm font-medium">
+                  {virtualCard?.is_frozen ? 'Unfreeze Card' : 'Freeze Card'}
+                </span>
               </button>
-              <button className="p-4 bg-card rounded-xl card-shadow text-center">
+              <button
+                onClick={() => setShowCardDetails(true)}
+                className="p-4 bg-card rounded-xl card-shadow text-center"
+              >
                 <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-primary/10 flex items-center justify-center">
-                  <CreditCard className="w-5 h-5 text-primary" />
+                  <Eye className="w-5 h-5 text-primary" />
                 </div>
                 <span className="text-sm font-medium">Card Details</span>
               </button>
@@ -123,10 +188,7 @@ export default function CardsPage() {
             <p className="text-muted-foreground mb-6">
               Request a debit or credit card to start spending with NexusBank.
             </p>
-            <Button
-              onClick={() => setShowRequestModal(true)}
-              className="btn-gradient"
-            >
+            <Button onClick={() => setShowRequestModal(true)} className="btn-gradient">
               <Plus className="w-5 h-5 mr-2" />
               Request a Card
             </Button>
@@ -155,23 +217,73 @@ export default function CardsPage() {
         </div>
       </div>
 
+      {/* Card Details Dialog */}
+      <Dialog open={showCardDetails} onOpenChange={setShowCardDetails}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Card Details</DialogTitle>
+            <DialogDescription>Your virtual card information</DialogDescription>
+          </DialogHeader>
+          {virtualCard && (
+            <div className="space-y-4 py-4">
+              <div className="p-4 bg-muted rounded-xl space-y-3">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Card Number</p>
+                  <div className="flex items-center justify-between">
+                    <p className="font-mono text-lg font-bold text-foreground tracking-wider">
+                      {showFullNumber ? formatCardNumber(virtualCard.card_number) : `•••• •••• •••• ${virtualCard.card_number.slice(-4)}`}
+                    </p>
+                    <button onClick={() => setShowFullNumber(!showFullNumber)} className="p-1">
+                      {showFullNumber ? <EyeOff className="w-4 h-4 text-muted-foreground" /> : <Eye className="w-4 h-4 text-muted-foreground" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="flex gap-6">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Expiry</p>
+                    <p className="font-mono font-semibold text-foreground">
+                      {String(virtualCard.expiry_month).padStart(2, '0')}/{String(virtualCard.expiry_year).slice(-2)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">CVV</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-mono font-semibold text-foreground">
+                        {showCVV ? virtualCard.cvv : '•••'}
+                      </p>
+                      <button onClick={() => setShowCVV(!showCVV)} className="p-1">
+                        {showCVV ? <EyeOff className="w-3 h-3 text-muted-foreground" /> : <Eye className="w-3 h-3 text-muted-foreground" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={copyCardNumber}
+                  className="w-full flex items-center justify-center gap-2 mt-2 px-4 py-2 bg-primary/10 text-primary rounded-lg text-sm font-medium"
+                >
+                  {copied ? <><Check className="w-4 h-4" /> Copied!</> : <><Copy className="w-4 h-4" /> Copy Card Number</>}
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground text-center">
+                {profile?.name || 'Card Holder'}
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Request Card Modal */}
       <Dialog open={showRequestModal} onOpenChange={setShowRequestModal}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Request a Card</DialogTitle>
-            <DialogDescription>
-              Choose the type of card you'd like to request
-            </DialogDescription>
+            <DialogDescription>Choose the type of card you'd like to request</DialogDescription>
           </DialogHeader>
-          
           <div className="space-y-4 py-4">
             <button
               onClick={() => setSelectedCardType('debit')}
               className={`w-full p-4 rounded-xl border-2 transition-all ${
-                selectedCardType === 'debit' 
-                  ? 'border-primary bg-primary/5' 
-                  : 'border-border hover:border-primary/50'
+                selectedCardType === 'debit' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
               }`}
             >
               <div className="flex items-center gap-3">
@@ -184,13 +296,10 @@ export default function CardsPage() {
                 </div>
               </div>
             </button>
-            
             <button
               onClick={() => setSelectedCardType('credit')}
               className={`w-full p-4 rounded-xl border-2 transition-all ${
-                selectedCardType === 'credit' 
-                  ? 'border-primary bg-primary/5' 
-                  : 'border-border hover:border-primary/50'
+                selectedCardType === 'credit' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
               }`}
             >
               <div className="flex items-center gap-3">
@@ -204,17 +313,10 @@ export default function CardsPage() {
               </div>
             </button>
           </div>
-
-          <Button
-            onClick={handleRequestCard}
-            disabled={isRequesting}
-            className="w-full btn-gradient"
-          >
+          <Button onClick={handleRequestCard} disabled={isRequesting} className="w-full btn-gradient">
             {isRequesting ? (
               <div className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-            ) : (
-              'Submit Request'
-            )}
+            ) : 'Submit Request'}
           </Button>
         </DialogContent>
       </Dialog>
