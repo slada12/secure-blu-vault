@@ -7,6 +7,7 @@ import { useTransactions } from '@/hooks/useTransactions';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { generateTransferReceipt } from '@/lib/generateTransferReceipt';
+import InternationalRecipientForm, { type InternationalRecipientData } from '@/components/bank/InternationalRecipientForm';
 
 const ROUTING_NUMBER = '021000021';
 
@@ -32,6 +33,7 @@ export default function SendMoney() {
   const [searchResults, setSearchResults] = useState<RecipientData[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [lastReference, setLastReference] = useState('');
+  const [internationalData, setInternationalData] = useState<InternationalRecipientData | null>(null);
 
   const canSendMoney = customer?.can_send_money && customer?.status === 'active';
 
@@ -115,6 +117,16 @@ export default function SendMoney() {
     setStep('amount');
   };
 
+  const handleInternationalRecipient = (data: InternationalRecipientData) => {
+    setInternationalData(data);
+    setSelectedRecipient({
+      id: 'international',
+      name: data.recipientName,
+      accountNumber: data.accountNumber,
+    });
+    setStep('amount');
+  };
+
   const handleAmountConfirm = () => {
     if (!amount || parseFloat(amount) <= 0) {
       toast.error('Please enter a valid amount');
@@ -136,7 +148,7 @@ export default function SendMoney() {
     setIsLoading(true);
     try {
       const transferAmount = parseFloat(amount);
-      const isInternal = true; // Recipient was found in our bank
+      const isInternal = transferType === 'domestic' && selectedRecipient.id !== 'international';
 
       if (isInternal) {
         // Internal transfer: deduct sender, credit recipient, status = completed
@@ -305,15 +317,11 @@ export default function SendMoney() {
       )}
 
       {/* Recipient Step */}
-      {step === 'recipient' && (
+      {step === 'recipient' && transferType === 'domestic' && (
         <div className="p-4 space-y-6">
           <div className="flex items-center gap-2 mb-2">
-            <span className={`text-xs px-3 py-1 rounded-full font-medium ${
-              transferType === 'domestic' 
-                ? 'bg-primary/10 text-primary' 
-                : 'bg-accent/10 text-accent'
-            }`}>
-              {transferType === 'domestic' ? 'Domestic Wire' : 'International Wire'}
+            <span className="text-xs px-3 py-1 rounded-full font-medium bg-primary/10 text-primary">
+              Domestic Wire
             </span>
           </div>
 
@@ -368,6 +376,11 @@ export default function SendMoney() {
             </div>
           )}
         </div>
+      )}
+
+      {/* International Recipient Step */}
+      {step === 'recipient' && transferType === 'international' && (
+        <InternationalRecipientForm onSubmit={handleInternationalRecipient} />
       )}
 
       {/* Amount Step */}
@@ -452,16 +465,40 @@ export default function SendMoney() {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Account</span>
-                <span className="font-medium">•••• {selectedRecipient.accountNumber.slice(-4)}</span>
+                <span className="font-medium font-mono text-right max-w-[60%] break-all">{selectedRecipient.accountNumber}</span>
               </div>
+              {internationalData && (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">SWIFT / BIC</span>
+                    <span className="font-medium font-mono">{internationalData.swiftCode}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Bank Name</span>
+                    <span className="font-medium text-right max-w-[60%]">{internationalData.bankName}</span>
+                  </div>
+                  {internationalData.bankRoutingNumber && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Bank Routing</span>
+                      <span className="font-medium font-mono">{internationalData.bankRoutingNumber}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Country</span>
+                    <span className="font-medium">{internationalData.country}</span>
+                  </div>
+                </>
+              )}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">From Account</span>
                 <span className="font-medium font-mono">{customer?.account_number}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Routing Number</span>
-                <span className="font-medium font-mono">{ROUTING_NUMBER}</span>
-              </div>
+              {transferType === 'domestic' && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Routing Number</span>
+                  <span className="font-medium font-mono">{ROUTING_NUMBER}</span>
+                </div>
+              )}
               {note && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Note</span>
@@ -472,6 +509,12 @@ export default function SendMoney() {
                 <span className="text-muted-foreground">Fee</span>
                 <span className="font-medium text-success">Free</span>
               </div>
+              {transferType === 'international' && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Status</span>
+                  <span className="font-medium text-yellow-500">Pending Review</span>
+                </div>
+              )}
             </div>
           </div>
 
