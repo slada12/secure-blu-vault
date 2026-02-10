@@ -174,10 +174,10 @@ export default function CustomerDetail() {
         customer_id: customerId,
         type: 'credit',
         amount,
-        description: fundDescription || 'Admin Deposit',
+        description: fundDescription || 'Self deposit',
         reference,
         status: 'completed' as any,
-        sender_name: 'NexusBank Admin',
+        sender_name: 'Ounion Trust Bank',
       });
 
       // Audit log
