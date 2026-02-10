@@ -18,7 +18,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
-const ROUTING_NUMBER = '021000021';
+// Routing number is now per-account from the database
 
 export default function CustomerDashboard() {
   const navigate = useNavigate();
@@ -31,6 +31,7 @@ export default function CustomerDashboard() {
   const [copied, setCopied] = useState(false);
 
   const accountNumber = customer?.account_number || '0000000000';
+  const routingNumber = (customer as any)?.routing_number || '000000000';
 
   const copyAccountNumber = () => {
     navigator.clipboard.writeText(accountNumber);
@@ -132,7 +133,7 @@ export default function CustomerDashboard() {
             </p>
             <p className="text-sm text-muted-foreground mt-2">Routing Number</p>
             <p className="font-mono text-sm font-medium text-foreground">
-              {showAccountNumber ? ROUTING_NUMBER : '•••••••••'}
+              {showAccountNumber ? routingNumber : '•••••••••'}
             </p>
           </div>
           <button
@@ -218,7 +219,7 @@ export default function CustomerDashboard() {
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Routing Number</p>
                 <p className="font-mono text-lg font-semibold text-foreground tracking-wider">
-                  {ROUTING_NUMBER}
+                  {routingNumber}
                 </p>
               </div>
               <button

@@ -83,7 +83,7 @@ export default function ProfilePage() {
     );
   }
 
-  const ROUTING_NUMBER = '021000021';
+  const routingNumber = (customer as any)?.routing_number || '000000000';
 
   const profileSections = [
     {
@@ -106,7 +106,7 @@ export default function ProfilePage() {
         {
           icon: CreditCard,
           label: 'Routing Number',
-          value: showAccountDetails ? ROUTING_NUMBER : '•••••••••',
+          value: showAccountDetails ? routingNumber : '•••••••••',
           onClick: () => setShowAccountDetails(!showAccountDetails),
         },
         {

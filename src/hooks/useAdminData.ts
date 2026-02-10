@@ -12,6 +12,8 @@ export interface AdminCustomerData {
   can_send_money: boolean;
   can_login: boolean;
   created_at: string;
+  currency: string;
+  routing_number: string | null;
   profile?: {
     name: string;
     email: string;

@@ -22,6 +22,7 @@ import TransactionHistory from "./pages/customer/TransactionHistory";
 import SendMoney from "./pages/customer/SendMoney";
 import CardsPage from "./pages/customer/Cards";
 import ProfilePage from "./pages/customer/Profile";
+import NotificationsPage from "./pages/customer/Notifications";
 
 // Admin Pages
 import AdminDashboard from "./pages/admin/Dashboard";
@@ -75,6 +76,11 @@ const App = () => (
             <Route path="/profile" element={
               <ProtectedRoute>
                 <ProfilePage />
+              </ProtectedRoute>
+            } />
+            <Route path="/notifications" element={
+              <ProtectedRoute>
+                <NotificationsPage />
               </ProtectedRoute>
             } />
             
