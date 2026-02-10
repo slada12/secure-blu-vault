@@ -16,12 +16,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-import heroEarlyDeposit from "../assets/hero-early-deposit.jpg";
-import logoOuniontrust from "../assets/logo-ouniontrust.png";
-import heroCardLocked from "../assets/hero-card-locked.jpg";
-import heroMonthlyFee from "../assets/hero-monthly-fee.jpg";
-import heroAppCard from "../assets/hero-app-card.jpg";
-
 export default function Index() {
   const navigate = useNavigate();
 
@@ -104,7 +98,7 @@ export default function Index() {
           <header className="flex items-center justify-between gap-4 mb-10">
             <div className="flex items-center gap-3">
               <img
-                src={logoOuniontrust}
+                src="/logo-ouniontrust.png"
                 alt="OunionTrust Bank logo"
                 className="h-10 w-auto rounded-md bg-white/10 px-2 py-1 object-contain"
               />
@@ -175,7 +169,7 @@ export default function Index() {
             {/* Hero image */}
             <div className="relative">
               <img
-                src={heroEarlyDeposit}
+                src="/hero-early-deposit.jpg"
                 alt="Customer excited about early paycheck deposit from OunionTrust Bank"
                 className="w-full max-w-sm ml-auto rounded-3xl object-cover shadow-xl"
               />
@@ -250,7 +244,7 @@ export default function Index() {
 
             <div>
               <img
-                src={heroMonthlyFee}
+                src="/hero-monthly-fee.jpg"
                 alt="Customer happy about OunionTrust Bank monthly fee waived"
                 className="w-full rounded-3xl object-cover shadow-xl"
               />
@@ -381,7 +375,7 @@ export default function Index() {
 
             <div className="relative">
               <img
-                src={heroCardLocked}
+                src="/hero-card-locked.jpg"
                 alt="Customer locking their OunionTrust Bank card from the app"
                 className="w-full rounded-3xl object-cover shadow-xl"
               />
@@ -511,7 +505,7 @@ export default function Index() {
 
             <div className="order-1 md:order-2">
               <img
-                src={heroAppCard}
+                src="/hero-app-card.jpg"
                 alt="OunionTrust Bank mobile app and debit card"
                 className="w-full rounded-3xl object-cover shadow-xl"
               />
