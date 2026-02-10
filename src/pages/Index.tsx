@@ -16,11 +16,11 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-import heroEarlyDeposit from "@/assets/hero-early-deposit.jpg";
-import logoOuniontrust from "@/assets/logo-ouniontrust.png";
-import heroCardLocked from "@/assets/hero-card-locked.jpg";
-import heroMonthlyFee from "@/assets/hero-monthly-fee.jpg";
-import heroAppCard from "@/assets/hero-app-card.jpg";
+import heroEarlyDeposit from "../assets/hero-early-deposit.jpg";
+import logoOuniontrust from "../assets/logo-ouniontrust.png";
+import heroCardLocked from "../assets/hero-card-locked.jpg";
+import heroMonthlyFee from "../assets/hero-monthly-fee.jpg";
+import heroAppCard from "../assets/hero-app-card.jpg";
 
 export default function Index() {
   const navigate = useNavigate();
