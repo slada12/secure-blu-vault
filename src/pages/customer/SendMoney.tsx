@@ -46,12 +46,17 @@ export default function SendMoney() {
 
     setIsSearching(true);
     try {
-      const { data: customers, error: customersError } = await supabase
-        .from('customers')
-        .select('id, user_id, account_number')
-        .or(`account_number.ilike.%${query}%`)
-        .neq('user_id', customer?.user_id)
-        .limit(5);
+      let customersQuery = supabase
+  .from('customers')
+  .select('id, user_id, account_number')
+  .ilike('account_number', `%${query}%`)
+  .limit(5);
+
+if (customer?.user_id) {
+  customersQuery = customersQuery.not('user_id', 'eq', customer.user_id);
+}
+
+const { data: customers, error: customersError } = await customersQuery;
 
       if (customersError) throw customersError;
 
