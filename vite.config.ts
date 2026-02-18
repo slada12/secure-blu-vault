@@ -5,7 +5,7 @@ import { componentTagger } from "lovable-tagger";
 
 export default defineConfig({
   // ✅ Hardcoded base for GitHub Pages project site
-  base: "/secure-blu-vault/",
+  base: "/ouitrust.site/",
 
   server: {
     host: "::",
