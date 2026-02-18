@@ -3,9 +3,9 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 
-export default defineConfig(({ mode }) => ({
-  // ✅ REQUIRED for GitHub Pages project site
-  base: mode === "production" ? "/secure-blu-vault/" : "/",
+export default defineConfig({
+  // ✅ Hardcoded base for GitHub Pages project site
+  base: "/secure-blu-vault/",
 
   server: {
     host: "::",
@@ -17,12 +17,12 @@ export default defineConfig(({ mode }) => ({
 
   plugins: [
     react(),
-    mode === "development" && componentTagger(),
-  ].filter(Boolean),
+    componentTagger(),
+  ],
 
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
   },
-}));
+});
